@@ -1,6 +1,20 @@
 # bizify
 
+## 如何开始
+
+```bash
+# 安装依赖
+npm i
+
+# 初始化子包依赖以及链接
+npm run bootstrap
+
+# 发布（run 不能丢）
+npm run publish
+```
+
 ## Lerna 使用
+
 > https://github.com/lerna/lerna
 
 ```bash
