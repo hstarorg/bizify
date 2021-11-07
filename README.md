@@ -2,18 +2,23 @@
 
 ## 如何开始
 
+> 推荐使用 `pnpm` 作为包管理工具
+
 ```bash
 # 安装依赖
-npm i
+pnpm i
 
 # 初始化子包依赖以及链接
-npm run bootstrap
+pnpm run bootstrap
+
+# Run dev
+pnpm start
 
 # 单元测试
-npm test
+pnpm test
 
 # 发布（run 不能丢）
-npm run publish
+pnpm run publish
 ```
 
 ## Lerna 使用

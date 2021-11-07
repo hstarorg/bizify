@@ -23,7 +23,6 @@
     "url": "git+https://github.com/hstarorg/bizify.git"
   },
   "scripts": {
-    "build": "tsc"
   },
   "bugs": {
     "url": "https://github.com/hstarorg/bizify/issues"

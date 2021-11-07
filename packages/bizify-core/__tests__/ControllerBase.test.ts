@@ -1,8 +1,8 @@
 import { folio } from 'folio';
 
-const { describe, test, beforeAll, beforeEach, expect } = folio;
-import { ControllerBase } from './ControllerBase';
-import { DeepReadonly } from './bizify.lib';
+const { describe, test, beforeEach, expect } = folio;
+import { ControllerBase } from '../src';
+import { DeepReadonly } from '../src/bizify.lib';
 
 type PageData = { a: number; c: { d: Number } };
 class TestCtrl extends ControllerBase<PageData> {
@@ -17,7 +17,7 @@ class TestCtrl extends ControllerBase<PageData> {
   }
 }
 
-folio.describe('bizify-core', () => {
+describe('bizify-core', () => {
   let vm: TestCtrl = null;
   let vmData: DeepReadonly<PageData>;
   beforeEach(async () => {
@@ -25,7 +25,7 @@ folio.describe('bizify-core', () => {
     vmData = vm.data;
   });
 
-  folio.test('$updateByPath', () => {
+  test('$updateByPath', () => {
     expect(vmData.a).toBe(1);
     vm.updateDValue(22);
     expect(vmData.c.d).toBe(22);
