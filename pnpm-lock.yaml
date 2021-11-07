@@ -1,11 +1,13 @@
 lockfileVersion: 5.3
 
 specifiers:
+  '@types/lodash.set': ^4.3.6
   folio: ^0.3.18
   lerna: ^4.0.0
   typescript: ^4.4.4
 
 devDependencies:
+  '@types/lodash.set': 4.3.6
   folio: 0.3.18
   lerna: 4.0.0
   typescript: 4.4.4
@@ -2067,6 +2069,16 @@ packages:
     resolution: {integrity: sha512-c3mAZEuK0lvBp8tmuL74XRKn1+y2dcwOUpH7x4WrF6gk1GIgiluDRgMYQtw2OFcBvAJWlt6ASU3tSqxp0Uu0Aw==}
     dependencies:
       '@types/istanbul-lib-report': 3.0.0
+    dev: true
+
+  /@types/lodash.set/4.3.6:
+    resolution: {integrity: sha512-ZeGDDlnRYTvS31Laij0RsSaguIUSBTYIlJFKL3vm3T2OAZAQj2YpSvVWJc0WiG4jqg9fGX6PAPGvDqBcHfSgFg==}
+    dependencies:
+      '@types/lodash': 4.14.176
+    dev: true
+
+  /@types/lodash/4.14.176:
+    resolution: {integrity: sha512-xZmuPTa3rlZoIbtDUyJKZQimJV3bxCmzMIO2c9Pz9afyDro6kr7R79GwcB6mRhuoPmV2p1Vb66WOJH7F886WKQ==}
     dev: true
 
   /@types/minimatch/3.0.5:

@@ -1,0 +1,25 @@
+lockfileVersion: 5.3
+
+specifiers:
+  '@vue/reactivity': ^3.2.21
+  lodash.set: ^4.3.2
+
+dependencies:
+  '@vue/reactivity': 3.2.21
+  lodash.set: 4.3.2
+
+packages:
+
+  /@vue/reactivity/3.2.21:
+    resolution: {integrity: sha512-7C57zFm/5E3SSTUhVuYj1InDwuJ+GIVQ/z+H43C9sST85gIThGXVhksl1yWTAadf8Yz4T5lSbqi5Ds8U/ueWcw==}
+    dependencies:
+      '@vue/shared': 3.2.21
+    dev: false
+
+  /@vue/shared/3.2.21:
+    resolution: {integrity: sha512-5EQmIPK6gw4UVYUbM959B0uPsJ58+xoMESCZs3N89XyvJ9e+fX4pqEPrOGV8OroIk3SbEvJcC+eYc8BH9JQrHA==}
+    dev: false
+
+  /lodash.set/4.3.2:
+    resolution: {integrity: sha1-2HV7HagH3eJIFrDWqEvqGnYjCyM=}
+    dev: false

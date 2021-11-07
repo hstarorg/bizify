@@ -3,6 +3,7 @@
     "target": "ES5",
     "declarationDir": "lib",
     "declaration": true,
-    "outDir": "lib"
+    "outDir": "lib",
+    "esModuleInterop": true
   }
 }

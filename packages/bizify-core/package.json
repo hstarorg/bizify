@@ -29,6 +29,7 @@
     "url": "https://github.com/hstarorg/bizify/issues"
   },
   "dependencies": {
-    "@vue/reactivity": "^3.2.21"
+    "@vue/reactivity": "^3.2.21",
+    "lodash.set": "^4.3.2"
   }
 }
