@@ -9,6 +9,9 @@ npm i
 # 初始化子包依赖以及链接
 npm run bootstrap
 
+# 单元测试
+npm test
+
 # 发布（run 不能丢）
 npm run publish
 ```

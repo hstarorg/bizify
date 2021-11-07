@@ -23,9 +23,12 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: run tests from root\" && exit 1"
+    "test": "folio"
   },
   "bugs": {
     "url": "https://github.com/hstarorg/bizify/issues"
+  },
+  "dependencies": {
+    "@vue/reactivity": "^3.2.21"
   }
 }
