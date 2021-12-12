@@ -7,7 +7,6 @@ export default defineConfig({
   favicon: 'https://cdn1.hstar.vip/logo.png',
   logo: 'https://cdn1.hstar.vip/logo.png',
   outputPath: 'docs-dist',
-  base: '/bizify/',
   history: { type: 'hash' },
   hash: true,
 });
