@@ -18,7 +18,10 @@ pnpm start
 pnpm test
 
 # 发布（run 不能丢）
-pnpm run publish
+pnpm run pub
+
+# 发布文档（推送到 gh-pages）
+pnpm run pub:doc
 ```
 
 ## Lerna 使用

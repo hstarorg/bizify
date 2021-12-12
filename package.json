@@ -14,7 +14,8 @@
     "test:cov": "lerna run test:cov --stream",
     "pub": "npm run build && lerna publish",
     "docs:build": "dumi build && node ./scripts/add_base.js",
-    "docs:deploy": "gh-pages -d docs-dist"
+    "docs:deploy": "gh-pages -d docs-dist",
+    "pub:doc":"npm run docs:build && npm run docs:deploy"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^5.15.1",
