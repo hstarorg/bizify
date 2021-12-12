@@ -12,7 +12,7 @@
     "test": "lerna run test --stream",
     "test:core": "lerna run test --stream --scope bizify-core",
     "test:cov": "lerna run test:cov --stream",
-    "publish": "lerna publish",
+    "pub": "lerna publish",
     "docs:build": "dumi build",
     "docs:deploy": "gh-pages -d docs-dist"
   },
