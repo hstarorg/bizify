@@ -38,4 +38,12 @@ export const internalUtil = {
   mergeData(data1: Record<string, any>, data2: Record<string, any>) {
     return { ...(data1 || {}), ...(data2 || {}) };
   },
+
+  /**
+   * 生成随机字符串
+   * @returns
+   */
+  generateRndString() {
+    return Math.random().toString(16).slice(2);
+  },
 };

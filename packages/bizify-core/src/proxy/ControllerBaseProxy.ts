@@ -1,9 +1,14 @@
 import { AbstractController } from '../AbstractController';
-import { ControllerBaseOptions, DeepReadonly } from '../bizify.lib';
+import {
+  ControllerBaseOptions,
+  DeepReadonly,
+  ServiceOptions,
+} from '../bizify.lib';
 import { internalUtil } from '../interalUtil';
 import { ProxyTargetType } from './ProxyTargetType';
 import { EventEmitter } from 'events';
 import { EventTypes } from '../EventTypes';
+import { ServiceWrapper } from '../ServiceWrapper';
 
 export abstract class ControllerBaseProxy<
   TData extends Record<string, any> = any,
@@ -52,6 +57,13 @@ export abstract class ControllerBaseProxy<
       // 不处理错误，扔给业务层
       throw ex;
     }
+  }
+
+  protected $buildService<RT, FN extends (...args: any[]) => RT = any>(
+    asyncFn: FN,
+    serviceOptions?: ServiceOptions,
+  ): ServiceWrapper<RT, FN> {
+    return new ServiceWrapper(asyncFn, this.emitChange, serviceOptions);
   }
 
   private emitChange() {

@@ -47,3 +47,5 @@ export declare type DeepReadonly<T> = T extends Builtin
   : Readonly<T>;
 
 export type ControllerBaseOptions = {};
+
+export type ServiceOptions = {};
