@@ -8,22 +8,28 @@
     "start": "dumi dev",
     "bootstrap": "pnpm i && lerna bootstrap",
     "build": "lerna run build",
+    "build:core": "lerna run build --scope bizify-core",
     "test": "lerna run test --stream",
+    "test:cov": "lerna run test:cov --stream",
+    "test:core": "lerna run test --stream --scope bizify-core",
     "publish": "lerna publish",
     "docs:build": "dumi build",
     "docs:deploy": "gh-pages -d docs-dist"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^5.15.1",
+    "@testing-library/react": "^12.1.2",
+    "@types/jest": "^27.0.3",
     "@types/lodash.set": "^4.3.6",
-    "folio": "^0.3.18",
-    "lerna": "^4.0.0",
-    "typescript": "^4.4.4",
     "@umijs/test": "^3.0.5",
     "dumi": "^1.0.17",
     "father-build": "^1.17.2",
     "gh-pages": "^3.0.0",
+    "jest": "^27.4.4",
+    "lerna": "^4.0.0",
     "lint-staged": "^10.0.7",
     "prettier": "^2.2.1",
-    "yorkie": "^2.0.0"
+    "ts-jest": "^27.1.1",
+    "typescript": "^4.4.4"
   }
 }
