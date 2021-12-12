@@ -66,12 +66,16 @@ export abstract class ControllerBaseProxy<
     return new ServiceWrapper(asyncFn, this.emitChange, serviceOptions);
   }
 
-  private emitChange() {
+  /**
+   * 注意此处用箭头函数锁定下 this，不然 ServiceWrapper 那里会出现 this 异常
+   * @returns
+   */
+  private emitChange = () => {
     if (this.isBatching) {
       return;
     }
     this.eventBus.emit(EventTypes.Change);
-  }
+  };
 
   /**
    * 将数据转换为可响应对象

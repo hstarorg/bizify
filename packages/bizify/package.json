@@ -10,7 +10,9 @@
   "author": "hstarorg <hm910705@163.com>",
   "homepage": "https://github.com/hstarorg/bizify",
   "license": "MIT",
-  "main": "lib/bizify.js",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/src/index.d.ts",
   "files": [
     "dist",
     "!dist/__tests__"
@@ -29,5 +31,8 @@
   },
   "dependencies": {
     "bizify-core": "^0.0.1"
+  },
+  "peerDependencies": {
+    "react": "^17.0.2"
   }
 }
