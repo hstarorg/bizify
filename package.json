@@ -13,7 +13,7 @@
     "test:core": "lerna run test --stream --scope bizify-core",
     "test:cov": "lerna run test:cov --stream",
     "pub": "npm run build && lerna publish",
-    "docs:build": "dumi build",
+    "docs:build": "dumi build && node ./scripts/add_base.js",
     "docs:deploy": "gh-pages -d docs-dist"
   },
   "devDependencies": {

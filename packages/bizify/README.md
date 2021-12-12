@@ -2,6 +2,8 @@
 
 > 一个实践 OOP 的业务框架，分离前端业务逻辑与 UI。让不同的同学写更一致的代码。
 
+文档可见：https://hstarorg.github.io/bizify
+
 ## Usage
 
 在控制类中以 OOP 的风格编写业务逻辑
