@@ -8,5 +8,5 @@ export abstract class AbstractController {
    */
   public abstract $subscribe(subFn: (...args: any[]) => void): () => void;
 
-  public abstract __init(options?: ControllerBaseOptions): AbstractController;
+  public abstract __init(options?: ControllerBaseOptions): this;
 }
