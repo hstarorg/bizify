@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES5",
-    "declarationDir": "lib",
     "declaration": true,
-    "outDir": "lib"
+    "esModuleInterop": true,
+    "jsx": "react"
   }
 }

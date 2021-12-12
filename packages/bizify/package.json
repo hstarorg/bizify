@@ -11,20 +11,23 @@
   "homepage": "https://github.com/hstarorg/bizify",
   "license": "MIT",
   "main": "lib/bizify.js",
-  "directories": {
-    "lib": "lib",
-    "test": "__tests__"
-  },
   "files": [
-    "lib"
+    "dist",
+    "!dist/__tests__"
   ],
+  "scripts": {
+    "build": "father-build",
+    "test": "umi-test",
+    "test:cov": "umi-test --coverage"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hstarorg/bizify.git"
   },
-  "scripts": {
-  },
   "bugs": {
     "url": "https://github.com/hstarorg/bizify/issues"
+  },
+  "dependencies": {
+    "bizify-core": "^0.0.1"
   }
 }
