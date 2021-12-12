@@ -1,11 +1,5 @@
 # `bizify-core`
 
-> TODO: description
+> bizify 的内核包
 
-## Usage
-
-```
-const bizifyCore = require('bizify-core');
-
-// TODO: DEMONSTRATE API
-```
+具体使用请参考：https://www.npmjs.com/package/bizify
