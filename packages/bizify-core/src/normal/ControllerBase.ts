@@ -1,6 +1,6 @@
-import { AbstractController } from './AbstractController';
+import { AbstractController } from '../AbstractController';
 import lodashSet from 'lodash.set';
-import { DeepReadonly } from './bizify.lib';
+import { DeepReadonly } from '../bizify.lib';
 
 export abstract class ControllerBase<
   TData extends Record<string, any> = any,
