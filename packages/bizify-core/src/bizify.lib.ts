@@ -45,3 +45,5 @@ export declare type DeepReadonly<T> = T extends Builtin
       readonly [K in keyof T]: DeepReadonly<T[K]>;
     }
   : Readonly<T>;
+
+export type ControllerBaseOptions = {};

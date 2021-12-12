@@ -12,12 +12,9 @@
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/src/index.d.ts",
-  "directories": {
-    "lib": "lib",
-    "test": "__tests__"
-  },
   "files": [
-    "lib"
+    "dist",
+    "!dist/__tests__"
   ],
   "repository": {
     "type": "git",
@@ -25,13 +22,13 @@
   },
   "scripts": {
     "build": "father-build",
-    "test": "folio"
+    "test": "umi-test",
+    "test:cov": "umi-test --coverage"
   },
   "bugs": {
     "url": "https://github.com/hstarorg/bizify/issues"
   },
   "dependencies": {
-    "@vue/reactivity": "^3.2.21",
     "lodash.set": "^4.3.2"
   }
 }

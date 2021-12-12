@@ -1,2 +1,5 @@
 export { ControllerBase } from './ControllerBase';
-export { ControllerBaseWithProxy } from './ControllerBaseWithProxy';
+export { ControllerBaseProxy } from './proxy/ControllerBaseProxy';
+
+export type { DeepReadonly, ControllerBaseOptions } from './bizify.lib';
+export type { AbstractController } from './AbstractController';
