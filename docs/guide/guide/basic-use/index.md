@@ -8,6 +8,8 @@ order: 0
 
 ## 基础使用
 
+### 两步使用 bizify
+
 简单两步即可使用 `bizify`
 
 1. 创建 Controller
@@ -52,10 +54,10 @@ export default function Demo1() {
 }
 ```
 
-## 示例 1：直接使用
+### 函数式组件中使用
 
 <code src="./demo1/Demo1.tsx" />
 
-## 示例 2：在类组件中使用
+### 在类组件中使用
 
 <code src="./demo2/Demo2.tsx" />
