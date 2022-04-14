@@ -15,26 +15,26 @@
     "pub": "npm run build && lerna publish",
     "docs:build": "dumi build && node ./scripts/add_base.js",
     "docs:deploy": "gh-pages -d docs-dist",
-    "pub:doc":"npm run docs:build && npm run docs:deploy"
+    "pub:doc": "npm run docs:build && npm run docs:deploy"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^5.15.1",
-    "@testing-library/react": "^12.1.2",
-    "@types/jest": "^27.0.3",
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^12.1.5",
+    "@types/jest": "^27.4.1",
     "@types/lodash.set": "^4.3.6",
-    "@umijs/test": "^3.0.5",
-    "antd": "^4.17.3",
+    "@umijs/test": "^3.5.22",
+    "antd": "^4.19.5",
     "bizify": "^0.0.1",
-    "dumi": "^1.0.17",
-    "father-build": "^1.17.2",
-    "gh-pages": "^3.0.0",
-    "jest": "^27.4.4",
+    "dumi": "^1.1.40",
+    "father-build": "^1.22.1",
+    "gh-pages": "^3.2.3",
+    "jest": "^27.5.1",
     "lerna": "^4.0.0",
-    "lint-staged": "^10.0.7",
-    "prettier": "^2.2.1",
+    "lint-staged": "^10.5.4",
+    "prettier": "^2.6.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "ts-jest": "^27.1.1",
-    "typescript": "^4.4.4"
+    "ts-jest": "^27.1.4",
+    "typescript": "^4.6.3"
   }
 }
