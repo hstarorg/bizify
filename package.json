@@ -6,8 +6,7 @@
   ],
   "scripts": {
     "start": "dumi dev",
-    "bootstrap": "pnpm i && lerna bootstrap",
-    "build": "lerna run build",
+    "build": "pnpm --filter \"./packages/*\" build",
     "build:core": "lerna run build --scope bizify-core",
     "test": "lerna run test --stream",
     "test:core": "lerna run test --stream --scope bizify-core",

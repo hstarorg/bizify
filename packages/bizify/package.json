@@ -30,9 +30,9 @@
     "url": "https://github.com/hstarorg/bizify/issues"
   },
   "dependencies": {
-    "bizify-core": "^0.1.0"
+    "bizify-core": "workspace:^0.1.0"
   },
   "peerDependencies": {
-    "react": "^17.0.2"
+    "react": ">=16"
   }
 }

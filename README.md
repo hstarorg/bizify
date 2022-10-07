@@ -8,9 +8,6 @@
 # 安装依赖
 pnpm i
 
-# 初始化子包依赖以及链接
-pnpm run bootstrap
-
 # Run dev
 pnpm start
 
