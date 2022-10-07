@@ -44,15 +44,20 @@ importers:
 
   packages/bizify:
     specifiers:
-      bizify-core: workspace:^0.1.0
+      bizify-core: ^0.1.0
+      react: '>=16'
     dependencies:
       bizify-core: link:../bizify-core
+    devDependencies:
+      react: 17.0.2
 
   packages/bizify-core:
     specifiers:
+      '@types/events': ^3.0.0
       events: ^3.3.0
       lodash.set: ^4.3.2
     dependencies:
+      '@types/events': 3.0.0
       events: 3.3.0
       lodash.set: 4.3.2
 
@@ -3426,6 +3431,10 @@ packages:
   /@types/estree/0.0.51:
     resolution: {integrity: sha512-CuPgU6f3eT/XgKKPqKd/gLZV1Xmvf1a2R5POBOGQa6uv82xpls89HU5zKeVoyR8XzHd1RGNOlQlvUe3CFkjWNQ==}
     dev: true
+
+  /@types/events/3.0.0:
+    resolution: {integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==}
+    dev: false
 
   /@types/graceful-fs/4.1.5:
     resolution: {integrity: sha512-anKkLmZZ+xm4p8JWBf4hElkM4XR+EZeA2M9BAkkTldmcyDY4mbdIJnRghDJH3Ov5ooY7/UAoENtmdMSkaAd7Cw==}

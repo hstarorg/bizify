@@ -7,7 +7,7 @@
   "scripts": {
     "start": "dumi dev",
     "build": "pnpm --filter \"./packages/*\" build",
-    "build:core": "lerna run build --scope bizify-core",
+    "build:core": "pnpm --filter bizify-core build",
     "test": "lerna run test --stream",
     "test:core": "lerna run test --stream --scope bizify-core",
     "test:cov": "lerna run test:cov --stream",
