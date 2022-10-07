@@ -29,6 +29,7 @@
     "url": "https://github.com/hstarorg/bizify/issues"
   },
   "dependencies": {
+    "events": "^3.3.0",
     "lodash.set": "^4.3.2"
   }
 }
