@@ -8,7 +8,7 @@ type PageData = {
 };
 
 class TestCtrl extends ControllerBaseProxy<PageData> {
-  $data(): PageData {
+  protected $data(): PageData {
     return { a: 1, c: { d: 2 } };
   }
 

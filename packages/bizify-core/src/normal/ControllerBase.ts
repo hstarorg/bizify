@@ -9,7 +9,7 @@ export abstract class ControllerBase<
   get data(): DeepReadonly<TData> {
     return this.innerData;
   }
-  abstract $data(): TData;
+  protected abstract $data(): TData;
 
   protected $update(part) {}
 

@@ -16,7 +16,7 @@ export abstract class ControllerBaseProxy<
   /**
    * 利用函数来返回数据值，（对比属性 data）可以做更多的校验
    */
-  abstract $data(): DeepReadonly<TData>;
+  protected abstract $data(): DeepReadonly<TData>;
 
   public readonly data!: TData;
 

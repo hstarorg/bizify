@@ -8,7 +8,7 @@ type PageData = {
 };
 
 class TestCtrl extends ControllerBaseProxy<PageData> {
-  $data(): PageData {
+  protected $data(): PageData {
     return { a: 1, c: { d: 2 } };
   }
 
@@ -44,7 +44,6 @@ describe('ControllerBaseProxy test', () => {
     expect(vm.data.a).toBe(2);
     // 未订阅变更，不会被调用
     expect(changeFn).toBeCalledTimes(0);
-
     const unsub = vm.$subscribe(changeFn);
     vm.plusA(1);
     expect(vm.data.a).toBe(3);
