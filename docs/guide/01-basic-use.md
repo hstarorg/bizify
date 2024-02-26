@@ -1,14 +1,20 @@
 ---
+nav: Guide
 group:
-  path: guide
-  title: 快速上手
-title: 基础使用
+  title: Basic
+  order: 0
 order: 0
 ---
 
-## 基础使用
+# 安装
 
-### 两步使用 bizify
+```bash
+$ pnpm i bizify
+```
+
+# 基本使用
+
+## 两步使用 bizify
 
 简单两步即可使用 `bizify`
 
@@ -54,10 +60,10 @@ export default function Demo1() {
 }
 ```
 
-### 函数式组件中使用
+## 函数式组件中使用
 
-<code src="./demo1/Demo1.tsx" />
+<code src="./demos/demo1/Demo1.tsx" />
 
-### 在类组件中使用
+## 在类组件中使用
 
-<code src="./demo2/Demo2.tsx" />
+<code src="./demos/demo2/Demo2.tsx" />

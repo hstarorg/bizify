@@ -1,12 +1,12 @@
 ---
+nav: Guide
 group:
-  path: guide
-  title: 快速上手
-title: 服务管理
+  title: Basic
+  order: 0
 order: 5
 ---
 
-## 服务管理
+# 服务管理
 
 使用 bizify 的 Service 特性可以非常方便的管理页面上的异步服务（以请求请求为主）
 
@@ -42,7 +42,7 @@ export class DemoCtrl extends ControllerBaseProxy<DemoPageData> {
 
 ```
 
-### 直接使用
+## 直接使用
 
-<code src="./demo1/index.tsx" />
+<code src="./demos/demo-service-manage/index.tsx" />
 
