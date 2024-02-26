@@ -1,13 +1,19 @@
 module.exports = {
-  bracketSpacing: true,
-  jsxBracketSameLine: true,
+  pluginSearchDirs: false,
+  plugins: [
+    require.resolve('prettier-plugin-organize-imports'),
+    require.resolve('prettier-plugin-packagejson'),
+  ],
+  printWidth: 80,
+  proseWrap: 'never',
   singleQuote: true,
   trailingComma: 'all',
-  arrowParens: 'avoid',
   overrides: [
     {
-      files: '.prettierrc',
-      options: { parser: 'json' },
+      files: '*.md',
+      options: {
+        proseWrap: 'preserve',
+      },
     },
   ],
 };
