@@ -4,7 +4,6 @@
   ],
   "version": "0.2.0",
   "npmClient": "pnpm",
-  "useWorkspaces": true,
   "command": {
     "publish": {
       "ignoreChanges": [

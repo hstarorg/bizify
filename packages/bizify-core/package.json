@@ -21,9 +21,13 @@
     "url": "git+https://github.com/hstarorg/bizify.git"
   },
   "scripts": {
-    "build": "father-build",
-    "test": "umi-test",
-    "test:cov": "umi-test --coverage"
+    "build": "father build",
+    "test": "jest",
+    "doctor": "father doctor",
+    "test:cov": "jest --collectCoverage",
+    "lint": "npm run lint:es && npm run lint:css",
+    "lint:css": "stylelint \"{src,test}/**/*.{css,less}\"",
+    "lint:es": "eslint \"{src,test}/**/*.{js,jsx,ts,tsx}\""
   },
   "bugs": {
     "url": "https://github.com/hstarorg/bizify/issues"

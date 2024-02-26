@@ -9,7 +9,7 @@
 pnpm i
 
 # Run dev
-pnpm start
+pnpm dev
 
 # 单元测试
 pnpm test
