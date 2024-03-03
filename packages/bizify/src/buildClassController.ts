@@ -1,6 +1,6 @@
-import { Component, PureComponent } from 'react';
-import { AbstractController } from 'bizify-core';
 import type { ControllerBaseOptions } from 'bizify-core';
+import { AbstractController } from 'bizify-core';
+import { Component, PureComponent } from 'react';
 
 export function buildClassController<T extends AbstractController>(
   Ctrl: T | { new (): T },
@@ -23,6 +23,7 @@ export function buildClassController<T extends AbstractController>(
   const userComponentWillUnmount = componentIns.componentWillUnmount;
   componentIns.componentWillUnmount = function (...args: any[]) {
     if (typeof userComponentWillUnmount === 'function') {
+      // @ts-ignore
       userComponentWillUnmount.call(componentIns, ...args);
     }
     // 取消订阅

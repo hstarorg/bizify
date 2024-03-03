@@ -3,6 +3,8 @@
     "target": "ES5",
     "declaration": true,
     "esModuleInterop": true,
-    "jsx": "react"
-  }
+    "jsx": "react",
+    "strict": true
+  },
+  "include": ["./jest-setup.ts"]
 }

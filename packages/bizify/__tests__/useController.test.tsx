@@ -1,8 +1,7 @@
-import '@testing-library/jest-dom';
 import React from 'react';
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useController, ControllerBaseProxy } from '../src';
+import { ControllerBaseProxy, useController } from '../src';
 
 type DemoData = {
   val: number;
@@ -24,7 +23,9 @@ const CompA = () => {
   return (
     <div>
       <span>{vmData.val}</span>
-      <button onClick={vm.plus}>plus</button>
+      <button type="button" onClick={vm.plus}>
+        plus
+      </button>
     </div>
   );
 };
@@ -33,7 +34,7 @@ describe('useController test', () => {
   it('basic test', () => {
     render(<CompA />);
     expect(screen.queryByText('1')).toBeInTheDocument();
-    fireEvent.click(screen.queryByText('plus'));
+    fireEvent.click(screen.queryByText('plus')!);
     expect(screen.queryByText('2')).toBeInTheDocument();
   });
 });

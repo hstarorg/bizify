@@ -5,18 +5,18 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "dumi dev",
-    "dev": "dumi dev",
     "build": "pnpm --filter \"./packages/*\" build",
     "build:core": "pnpm --filter bizify-core build",
-    "test": "lerna run test --stream",
-    "test:core": "lerna run test --stream --scope bizify-core",
-    "test:cov": "lerna run test:cov --stream",
-    "prepare": "husky install && dumi setup",
-    "pub": "npm run build && lerna publish",
+    "dev": "dumi dev",
     "docs:build": "dumi build && node ./scripts/add_base.js",
     "docs:deploy": "gh-pages -d docs-dist",
-    "pub:doc": "npm run docs:build && npm run docs:deploy"
+    "prepare": "husky install && dumi setup",
+    "pub": "npm run build && lerna publish",
+    "pub:doc": "npm run docs:build && npm run docs:deploy",
+    "start": "dumi dev",
+    "test": "lerna run test --stream",
+    "test:core": "lerna run test --stream --scope bizify-core",
+    "test:cov": "lerna run test:cov --stream"
   },
   "commitlint": {
     "extends": [
@@ -40,6 +40,9 @@
       "prettier --parser=typescript --write"
     ]
   },
+  "dependencies": {
+    "umi": "^4.1.2"
+  },
   "devDependencies": {
     "@commitlint/cli": "18.6.1",
     "@commitlint/config-conventional": "^18.6.2",
@@ -49,6 +52,7 @@
     "@types/lodash.set": "^4.3.9",
     "@types/react": "^18.2.58",
     "@types/react-dom": "^18.2.19",
+    "@types/testing-library__jest-dom": "^6.0.0",
     "@umijs/lint": "^4.1.2",
     "@umijs/test": "^4.1.2",
     "antd": "^4.24.15",
@@ -71,8 +75,5 @@
     "stylelint": "^16.2.1",
     "ts-jest": "^29.1.2",
     "typescript": "^5.3.3"
-  },
-  "dependencies": {
-    "umi": "^4.1.2"
   }
 }

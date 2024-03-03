@@ -7,39 +7,39 @@
     "biz",
     "logic"
   ],
-  "author": "hstarorg <hm910705@163.com>",
   "homepage": "https://github.com/hstarorg/bizify",
+  "bugs": {
+    "url": "https://github.com/hstarorg/bizify/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hstarorg/bizify.git"
+  },
   "license": "MIT",
-  "main": "dist/index.js",
-  "module": "dist/index.esm.js",
-  "types": "dist/src/index.d.ts",
+  "author": "hstarorg <hm910705@163.com>",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
   "files": [
     "dist",
     "!dist/__tests__"
   ],
   "scripts": {
     "build": "father build",
-    "test": "jest",
     "doctor": "father doctor",
-    "test:cov": "jest --collectCoverage",
     "lint": "npm run lint:es && npm run lint:css",
     "lint:css": "stylelint \"{src,test}/**/*.{css,less}\"",
-    "lint:es": "eslint \"{src,test}/**/*.{js,jsx,ts,tsx}\""
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/hstarorg/bizify.git"
-  },
-  "bugs": {
-    "url": "https://github.com/hstarorg/bizify/issues"
+    "lint:es": "eslint \"{src,test}/**/*.{js,jsx,ts,tsx}\"",
+    "test": "jest",
+    "test:cov": "jest --collectCoverage"
   },
   "dependencies": {
     "bizify-core": "^0.2.0"
   },
   "devDependencies": {
-    "react": ">=16"
+    "react": ">=18"
   },
   "peerDependencies": {
-    "react": ">=16"
+    "react": ">=18"
   }
 }
