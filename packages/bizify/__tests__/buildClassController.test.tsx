@@ -40,7 +40,7 @@ class CompA extends Component {
   }
 }
 
-describe('useController test', () => {
+describe('buildClassController test', () => {
   it.skip('basic test for class controller', () => {
     render(<CompA />);
     expect(screen.queryByText('1')).toBeInTheDocument();

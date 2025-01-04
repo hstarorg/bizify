@@ -1,10 +1,22 @@
 {
   "compilerOptions": {
-    "target": "ES5",
     "declaration": true,
-    "esModuleInterop": true,
-    "jsx": "react",
-    "strict": true
-  },
-  "include": ["./jest-setup.ts"]
+    "removeComments": true,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2020",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "jsx": "react-jsx",
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false
+  }
 }
