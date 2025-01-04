@@ -34,10 +34,7 @@
     "test:cov": "jest --collectCoverage"
   },
   "dependencies": {
-    "bizify-core": "^0.2.0"
-  },
-  "devDependencies": {
-    "react": ">=18"
+    "bizify-core": "workspace:^"
   },
   "peerDependencies": {
     "react": ">=18"

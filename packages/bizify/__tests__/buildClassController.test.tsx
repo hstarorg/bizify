@@ -1,6 +1,8 @@
+import '@testing-library/jest-dom';
 import React, { Component } from 'react';
 
 import { fireEvent, render, screen } from '@testing-library/react';
+
 import { ControllerBaseProxy, buildClassController } from '../src';
 
 type DemoData = {

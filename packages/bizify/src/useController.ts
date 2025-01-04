@@ -1,26 +1,18 @@
-import { useEffect, useMemo, useRef, useReducer } from 'react';
-import { AbstractController } from 'bizify-core';
-import type { ControllerBaseOptions } from 'bizify-core';
+import React, { useEffect, useReducer, useRef } from 'react';
+import {
+  AbstractController,
+  type ControllerBaseOptions,
+} from '../../bizify-core/src';
 
 export function useController<T extends AbstractController>(
   Ctrl: T | { new (): T },
   options?: ControllerBaseOptions,
 ) {
-  const unsubscribeRef = useRef<() => void>();
-  const [_, forceUpdate] = useReducer(prev => prev + 1, 1);
-  // 控制器实例
-  const ctrlIns = useMemo(() => {
-    let ctrl: T;
-    if (Ctrl instanceof Function) {
-      ctrl = new Ctrl().__init(options);
-    } else {
-      ctrl = Ctrl;
-    }
-    unsubscribeRef.current = ctrl.$subscribe(() => {
-      forceUpdate();
-    });
-    return ctrl;
-  }, []);
+  const unsubscribeRef = React.useRef<() => void>();
+  const initialedRef = useRef(false);
+  const ctrlRef = useRef<any>();
+
+  const [, forceUpdate] = useReducer((prev) => prev + 1, 1);
 
   // 组件卸载时，取消订阅
   useEffect(() => {
@@ -31,5 +23,20 @@ export function useController<T extends AbstractController>(
     };
   }, []);
 
-  return ctrlIns;
+  if (!initialedRef.current) {
+    let ctrl: T | null = null;
+    if (Ctrl instanceof Function) {
+      ctrl = new Ctrl().__init(options);
+    } else {
+      ctrl = Ctrl;
+    }
+    initialedRef.current = true;
+    ctrlRef.current = ctrl;
+    unsubscribeRef.current = ctrl.$subscribe(() => {
+      forceUpdate();
+    });
+    return ctrl as any;
+  }
+
+  return ctrlRef.current!;
 }

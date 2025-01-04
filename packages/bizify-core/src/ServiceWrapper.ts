@@ -50,23 +50,24 @@ export class ServiceWrapper<RT, FN extends (...args: unknown[]) => RT> {
     return this.serviceError;
   }
 
-  constructor(asyncFn: FN, notifyFn: () => void, options?: any) {
+  constructor(asyncFn: FN, notifyFn: () => void, options?: unknown) {
     this.notifyFn = notifyFn;
-    this.execute = (...args: Parameters<FN>) => {
+    console.debug('ServiceWrapper', options);
+    this.execute = async (...args: Parameters<FN>): Promise<RT> => {
       const reqId = internalUtil.generateRndString();
       this.requestQueue.unshift(reqId);
       this.serviceState = 'pending';
       this.notifyFn();
       return Promise.resolve()
         .then(() => {
-          return asyncFn.apply(null, args);
+          return asyncFn.apply(null, args) as any;
         })
-        .then(data => {
+        .then((data) => {
           if (reqId === this.requestQueue[this.requestQueue.length - 1]) {
             this.requestQueue.pop();
             return data;
           }
-          return new Promise(resolve => {
+          return new Promise((resolve) => {
             const handlerFn = () => {
               if (reqId === this.requestQueue[this.requestQueue.length - 1]) {
                 this.requestQueue.pop();
@@ -77,12 +78,12 @@ export class ServiceWrapper<RT, FN extends (...args: unknown[]) => RT> {
             this.eventBus.on(EventTypes.RequestDone, handlerFn);
           });
         })
-        .then(data => {
+        .then((data) => {
           this.serviceData = data;
           this.serviceState = 'fulfilled';
           return data;
         })
-        .catch(reason => {
+        .catch((reason) => {
           this.serviceError = reason;
           this.serviceState = 'rejected';
           if (reqId === this.requestQueue[this.requestQueue.length - 1]) {
