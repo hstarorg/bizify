@@ -1,4 +1,7 @@
+import { EventEmitter } from 'events';
 import { AbstractController } from '../AbstractController';
+import { EventTypes } from '../EventTypes';
+import { ServiceWrapper } from '../ServiceWrapper';
 import {
   ControllerBaseOptions,
   DeepReadonly,
@@ -6,9 +9,6 @@ import {
 } from '../bizify.lib';
 import { internalUtil } from '../interalUtil';
 import { ProxyTargetType } from './ProxyTargetType';
-import { EventEmitter } from 'events';
-import { EventTypes } from '../EventTypes';
-import { ServiceWrapper } from '../ServiceWrapper';
 
 export abstract class ControllerBaseProxy<
   TData extends Record<string, any> = any,
@@ -35,6 +35,7 @@ export abstract class ControllerBaseProxy<
   }
 
   __init(options: ControllerBaseOptions) {
+    console.debug('ControllerBaseProxy.__init', options);
     const realData = internalUtil.mergeData(this.$data(), {});
     // 此处要绕开一下 readonly
     (this as any).data = this.reactive(realData);
@@ -88,6 +89,7 @@ export abstract class ControllerBaseProxy<
     if (targetType !== ProxyTargetType.COMMON) {
       console.warn('value must be an array or an object.');
     }
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     return new Proxy(obj, {
       // 拦截（代理） set 操作
@@ -134,7 +136,7 @@ export abstract class ControllerBaseProxy<
    * @param obj
    * @returns
    */
-  private getProxyTargetType(obj): ProxyTargetType {
+  private getProxyTargetType(obj: any): ProxyTargetType {
     const rawType = internalUtil.getRawType(obj);
     switch (rawType) {
       case 'Object':

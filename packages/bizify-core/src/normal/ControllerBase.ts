@@ -1,5 +1,5 @@
-import { AbstractController } from '../AbstractController';
 import lodashSet from 'lodash.set';
+import { AbstractController } from '../AbstractController';
 import { DeepReadonly } from '../bizify.lib';
 
 export abstract class ControllerBase<
@@ -11,7 +11,9 @@ export abstract class ControllerBase<
   }
   protected abstract $data(): TData;
 
-  protected $update(part) {}
+  protected $update(part: any) {
+    this.innerData = part;
+  }
 
   protected $updateByPath(path: string, value: unknown) {
     lodashSet(this.innerData, path, value);

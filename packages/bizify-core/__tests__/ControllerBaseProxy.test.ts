@@ -2,7 +2,7 @@ import { ControllerBaseProxy } from '../src';
 
 type PageData = {
   a: number;
-  c: { d: Number };
+  c: { d: number };
   arr?: string[];
   map?: Map<string, string>;
 };
@@ -19,7 +19,7 @@ class TestCtrl extends ControllerBaseProxy<PageData> {
 
   // 异步 a += n
   plusAsync = (n: number) => {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       setTimeout(() => {
         this.data.a += n;
         resolve(true);
@@ -65,7 +65,7 @@ describe('ControllerBaseProxy test', () => {
   });
 
   test('variable address not change', () => {
-    var c = { d: 1 };
+    let c = { d: 1 };
     vmData.c = c;
     vmData.c.d = 2;
     expect(vm.data.c).toStrictEqual(c);
@@ -76,21 +76,21 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(0);
   });
 
-  test('test execute biz function', () => {
+  test('execute biz function', () => {
     expect(vmData.a).toBe(1);
     vm.plusA(2);
     expect(vmData.a).toBe(3);
     expect(changeFn).toBeCalledTimes(1);
   });
 
-  test('test execute async biz function', async () => {
+  test('execute async biz function', async () => {
     expect(vmData.a).toBe(1);
     await vm.plusAsync(2);
     expect(vmData.a).toBe(3);
     expect(changeFn).toBeCalledTimes(1);
   });
 
-  test('test execute async biz function 2', async () => {
+  test('execute async biz function 2', async () => {
     expect(vmData.a).toBe(1);
     const p = vm.plusAsync(2);
     expect(vmData.a).toBe(1);
@@ -99,7 +99,7 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(1);
   });
 
-  test('test execute async biz function multiple', async () => {
+  test('execute async biz function multiple', async () => {
     expect(vmData.a).toBe(1);
     const p = vm.plusAsync(2);
     expect(vmData.a).toBe(1);
@@ -110,7 +110,7 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(2);
   });
 
-  test('test add property', () => {
+  test('add property', () => {
     const anyData = vmData as any;
     anyData.d = 1;
     expect(changeFn).toBeCalledTimes(1);
@@ -120,13 +120,13 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(2);
   });
 
-  test('test delete property', () => {
+  test('delete property', () => {
     delete vmData.a;
     expect(vmData.a).toBe(undefined);
     expect(changeFn).toBeCalledTimes(1);
   });
 
-  test('test has', () => {
+  test('has', () => {
     expect('arr' in vmData).toBe(false);
     expect(changeFn).toBeCalledTimes(0);
     vmData.arr = [];
@@ -135,7 +135,7 @@ describe('ControllerBaseProxy test', () => {
   });
 
   // TODO: 数组的变更监控可以优化
-  test('test array change: push|unshift', () => {
+  test('array change: push|unshift', () => {
     vmData.arr = [];
     expect(changeFn).toBeCalledTimes(1);
     vmData.arr.push('s1');
@@ -149,7 +149,7 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(6);
   });
 
-  test('test array change: pop|shift', () => {
+  test('array change: pop|shift', () => {
     vmData.arr = ['s1', 's2', 's3'];
     expect(changeFn).toBeCalledTimes(1);
 
@@ -163,7 +163,7 @@ describe('ControllerBaseProxy test', () => {
   });
 
   // TODO：优化数组监控
-  test('test array change: max shift', () => {
+  test('array change: max shift', () => {
     vmData.arr = new Array(1000).fill('s1');
     expect(changeFn).toBeCalledTimes(1);
 
@@ -172,20 +172,20 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(1002);
   });
 
-  test('test set map value not emit change', () => {
+  test('set map value not emit change', () => {
     vmData.map = new Map();
     expect(changeFn).toBeCalledTimes(1);
     vmData.map.set('a', 'av');
     expect(changeFn).toBeCalledTimes(1);
   });
 
-  test('test batchUpdate', () => {
+  test('batchUpdate', () => {
     vm.updateMore();
     // updateMore 做了很多事情，但也只会触发一次更新
     expect(changeFn).toBeCalledTimes(1);
   });
 
-  test('test batchUpdate with exception', () => {
+  test('batchUpdate with exception', () => {
     // 会出错
     expect(() => {
       vm.updateMoreThrowError();
@@ -205,7 +205,7 @@ describe('ControllerBaseProxy test', () => {
     expect(changeFn).toBeCalledTimes(2);
   });
 
-  test('test reactive data type', () => {
+  test('reactive data type', () => {
     class T2Ctrl extends ControllerBaseProxy {
       $data() {
         return { a: new Map() };
