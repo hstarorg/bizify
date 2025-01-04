@@ -27,7 +27,7 @@ describe('ServiceWrapper test', () => {
     notifyFn = jest.fn();
   });
 
-  test('test service will succeed', async () => {
+  test('service will succeed', async () => {
     sw = new ServiceWrapper(buildAsyncFn(500), notifyFn);
     expect(sw.loaded).toBe(false);
     expect(sw.loading).toBe(false);
@@ -41,18 +41,19 @@ describe('ServiceWrapper test', () => {
     expect(notifyFn).toBeCalledTimes(2);
   });
 
-  test('test service will failed', async () => {
+  test('service will failed', async () => {
     sw = new ServiceWrapper(buildAsyncFn(500, true), notifyFn);
     expect(sw.loaded).toBe(false);
     expect(sw.loading).toBe(false);
     const p = sw.execute('error');
     expect(sw.loading).toBe(true);
-    p.catch(() => {
-      expect(sw.loaded).toBe(true);
-      expect(sw.loading).toBe(false);
-      expect(sw.failed).toBe(true);
-      expect(sw.error).toBe('error');
-      expect(notifyFn).toBeCalledTimes(2);
-    });
+
+    await expect(p).rejects.toBeTruthy();
+
+    expect(sw.loaded).toBe(true);
+    expect(sw.loading).toBe(false);
+    expect(sw.failed).toBe(true);
+    expect(sw.error).toBe('error');
+    expect(notifyFn).toHaveBeenCalledTimes(2);
   });
 });

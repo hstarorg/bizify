@@ -1,6 +1,6 @@
 import { internalUtil } from '../src/interalUtil';
 describe('interalUtil test', () => {
-  test('test mergeData', () => {
+  test('mergeData', () => {
     let result = internalUtil.mergeData(null, null);
     expect(result).toStrictEqual({});
 
@@ -29,7 +29,7 @@ describe('interalUtil test', () => {
     expect(result).toStrictEqual({ user: { age: 3 } });
   });
 
-  test('test getRawType', () => {
+  test('getRawType', () => {
     const valArr: { val: any; type: string }[] = [
       { val: {}, type: 'Object' },
       { val: new Object(), type: 'Object' },
@@ -49,20 +49,20 @@ describe('interalUtil test', () => {
       { val: new Set(), type: 'Set' },
       { val: new WeakSet(), type: 'WeakSet' },
     ];
-    valArr.forEach(item => {
+    valArr.forEach((item) => {
       const rawType = internalUtil.getRawType(item.val);
       expect(rawType).toBe(item.type);
     });
   });
 
-  test('test isReactiveObject', () => {
+  test('isReactiveObject', () => {
     const trueArr: any[] = [{}, [], new Array(), new Object()];
     const falseArr: any[] = [1, 'str', new Set()];
-    trueArr.forEach(item => {
+    trueArr.forEach((item) => {
       let result = internalUtil.isReactiveObject(item);
       expect(result).toBe(true);
     });
-    falseArr.forEach(item => {
+    falseArr.forEach((item) => {
       let result = internalUtil.isReactiveObject(item);
       expect(result).toBe(false);
     });
