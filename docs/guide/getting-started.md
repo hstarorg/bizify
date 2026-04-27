@@ -1,5 +1,50 @@
 # 快速开始
 
+<script setup>
+import Counter from '../demos/Counter.tsx';
+</script>
+
+下面是我们要做的东西——一个最朴素的计数器,代码不到 30 行:
+
+<ReactDemo :component="Counter">
+
+```tsx
+import { ViewModelBase, useViewModel } from 'bizify';
+
+class CounterVM extends ViewModelBase<{ count: number }> {
+  protected $data() {
+    return { count: 0 };
+  }
+
+  plus() {
+    this.data.count += 1;
+  }
+
+  minus() {
+    this.data.count -= 1;
+  }
+
+  reset() {
+    this.data.count = 0;
+  }
+}
+
+export default function Counter() {
+  const vm = useViewModel(CounterVM);
+  const snap = vm.useSnapshot();
+  return (
+    <div>
+      <button onClick={vm.minus}>−</button>
+      <span>{snap.count}</span>
+      <button onClick={vm.plus}>+</button>
+      <button onClick={vm.reset}>重置</button>
+    </div>
+  );
+}
+```
+
+</ReactDemo>
+
 ## 安装
 
 ::: code-group
@@ -78,9 +123,9 @@ export function Counter() {
 ### 3. 完事
 
 `useViewModel` 自动负责:
-- 组件首次渲染时 `new CounterVM()`
-- 订阅 VM 的状态变化,自动重渲染
-- 组件卸载时 `$dispose()`
+- 组件首次渲染时 `new CounterVM()`(`onInit` 触发)
+- 视图挂载后触发 `onMount`,卸载时触发 `onUnmount`(StrictMode 双跑被合并)
+- `useSnapshot()` 自动追踪在 render 中读到的字段,变化时重渲染
 
 ## 单测 ViewModel
 

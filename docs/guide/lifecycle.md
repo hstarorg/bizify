@@ -1,5 +1,9 @@
 # 生命周期
 
+<script setup>
+import Theme from '../demos/Theme.tsx';
+</script>
+
 ViewModel 有四个生命周期钩子,按需重写即可。所有钩子默认空实现,不需要 `super.xxx()`。
 
 ## 钩子全景
@@ -106,6 +110,10 @@ class WindowSizeVM extends ViewModelBase<{ width: number; height: number }> {
 
 ## 实战:持久化
 
+切换主题,刷新页面看 `onInit` 是否从 localStorage 恢复:
+
+<ReactDemo :component="Theme">
+
 ```ts
 class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
   protected $data() { return { mode: 'light' as const }; }
@@ -119,7 +127,7 @@ class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
   }
 
   protected onMount() {
-    // 自身变化时写回
+    // 自身变化时自动写回
     this.unsubPersist = this.$watch('mode', (mode) => {
       localStorage.setItem('theme', mode);
     });
@@ -136,6 +144,8 @@ class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
   }
 }
 ```
+
+</ReactDemo>
 
 ## 实战:浏览器可见性(节能)
 

@@ -1,5 +1,9 @@
 # Provider 与 SSR
 
+<script setup>
+import SharedCart from '../demos/SharedCart.tsx';
+</script>
+
 `useViewModel` 适合**组件局部 VM**(每个组件一个独立实例)。但有些场景需要**多组件共享同一个 VM**:
 
 - 一个页面的多个组件共享 `CartVM`
@@ -9,6 +13,70 @@
 这时候用 `createViewModelContext`。
 
 ## 基础用法
+
+下面这个示例三个独立子组件 — `Header`(订阅 count)、`Picker`(只调方法)、`Footer`(订阅 subtotal)— 共享同一个 `SharedCartVM` 实例。点 Picker 的 +,Header 和 Footer 立刻同步更新:
+
+<ReactDemo :component="SharedCart">
+
+```tsx
+import { ViewModelBase, createViewModelContext } from 'bizify';
+
+class SharedCartVM extends ViewModelBase<{
+  items: { id: string; name: string; price: number }[];
+  readonly subtotal: number;
+  readonly count: number;
+}> {
+  protected $data() {
+    return {
+      items: [],
+      get subtotal() { return this.items.reduce((s, i) => s + i.price, 0); },
+      get count() { return this.items.length; },
+    };
+  }
+  add(item: { id: string; name: string; price: number }) {
+    this.data.items.push(item);
+  }
+  clear() { this.data.items = []; }
+}
+
+const { Provider: CartProvider, useVM: useCart } =
+  createViewModelContext(SharedCartVM);
+
+function Header() {
+  const cart = useCart();
+  const snap = cart.useSnapshot();
+  return <span>购物车({snap.count})</span>;
+}
+
+function Footer() {
+  const cart = useCart();
+  const snap = cart.useSnapshot();
+  return <span>合计:¥{snap.subtotal}</span>;
+}
+
+function Picker() {
+  const cart = useCart();
+  return (
+    <button onClick={() => cart.add({ id: 'a', name: '苹果', price: 5 })}>
+      + 苹果
+    </button>
+  );
+}
+
+export default function SharedCart() {
+  return (
+    <CartProvider>
+      <Header />
+      <Picker />
+      <Footer />
+    </CartProvider>
+  );
+}
+```
+
+</ReactDemo>
+
+整理一下抽离 store 的写法:
 
 ```ts
 // stores/cart.ts
