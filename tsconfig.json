@@ -1,14 +1,22 @@
 {
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "strict": true,
-    "declaration": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "jsx": "react",
-    "baseUrl": "./",
-    "paths": {
-      "@@/*": [".dumi/tmp/*"],
-    }
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "resolveJsonModule": true,
+    "types": ["vitest/globals"]
   },
-  "include": [".dumirc.ts", "src/**/*"]
+  "include": ["src", "test", "docs/.vitepress", "*.config.ts"],
+  "exclude": ["dist", "node_modules", "docs/.vitepress/dist", "docs/.vitepress/cache"]
 }
