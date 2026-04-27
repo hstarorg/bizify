@@ -12,7 +12,7 @@ class CounterVM extends ViewModelBase<{ count: number }> {
     return { count: 0 };
   }
 
-  plus = () => this.$set({ count: this.data.count + 1 });
+  plus() { this.data.count += 1; }
 }
 ```
 
@@ -21,8 +21,8 @@ class CounterVM extends ViewModelBase<{ count: number }> {
 ```tsx
 function Counter() {
   const vm = useViewModel(CounterVM);
-  const count = vm.use((s) => s.count);
-  return <button onClick={vm.plus}>{count}</button>;
+  const snap = vm.use();
+  return <button onClick={vm.plus}>{snap.count}</button>;
 }
 ```
 

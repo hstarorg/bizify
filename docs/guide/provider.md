@@ -16,7 +16,9 @@ import { ViewModelBase, createViewModelContext } from 'bizify';
 
 class CartVM extends ViewModelBase<{ items: CartItem[] }> {
   protected $data() { return { items: [] as CartItem[] }; }
-  add = (item: CartItem) => this.$set({ items: [...this.data.items, item] });
+  add(item: CartItem) {
+    this.data.items.push(item);
+  }
 }
 
 export const { Provider: CartProvider, useVM: useCart } =
@@ -42,15 +44,15 @@ function CartPage() {
 ```tsx
 function CartHeader() {
   const cart = useCart();
-  const count = cart.use((s) => s.items.length);
-  return <span>购物车 ({count})</span>;
+  const snap = cart.use();
+  return <span>购物车 ({snap.items.length})</span>;
 }
 
 function CartItems() {
   const cart = useCart();
-  const items = cart.use((s) => s.items);
+  const snap = cart.use();
   return (
-    <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
+    <ul>{snap.items.map((i) => <li key={i.id}>{i.name}</li>)}</ul>
   );
 }
 ```

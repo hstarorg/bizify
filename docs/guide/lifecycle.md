@@ -73,8 +73,7 @@ class StatsVM extends ViewModelBase<{ data: Stats | null }> {
   }
 
   fetch = async () => {
-    const data = await api.getStats();
-    this.$set({ data });
+    this.data.data = await api.getStats();
   };
 }
 ```
@@ -99,7 +98,8 @@ class WindowSizeVM extends ViewModelBase<{ width: number; height: number }> {
   }
 
   private onResize = () => {
-    this.$set({ width: window.innerWidth, height: window.innerHeight });
+    this.data.width = window.innerWidth;
+    this.data.height = window.innerHeight;
   };
 }
 ```
@@ -114,14 +114,14 @@ class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
     // 启动时从 localStorage 恢复
     const saved = localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') {
-      this.$set({ mode: saved });
+      this.data.mode = saved;
     }
   }
 
   protected onMount() {
     // 自身变化时写回
-    this.unsubPersist = this.$subscribe((s) => {
-      localStorage.setItem('theme', s.mode);
+    this.unsubPersist = this.$watch('mode', (mode) => {
+      localStorage.setItem('theme', mode);
     });
   }
 
@@ -131,8 +131,9 @@ class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
 
   private unsubPersist?: () => void;
 
-  toggle = () =>
-    this.$set((s) => ({ mode: s.mode === 'light' ? 'dark' : 'light' }));
+  toggle() {
+    this.data.mode = this.data.mode === 'light' ? 'dark' : 'light';
+  }
 }
 ```
 
@@ -166,7 +167,7 @@ class StatsVM extends ViewModelBase<{ data: Stats | null }> {
   private stopPolling = () => clearInterval(this.timer);
 
   fetch = async () => {
-    this.$set({ data: await api.getStats() });
+    this.data.data = await api.getStats();
   };
 }
 ```

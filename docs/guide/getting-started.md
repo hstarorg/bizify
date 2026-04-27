@@ -33,28 +33,24 @@ export class CounterVM extends ViewModelBase<CounterState> {
     return { count: 0 };
   }
 
-  plus = () => this.$set({ count: this.data.count + 1 });
-  minus = () => this.$set({ count: this.data.count - 1 });
-  reset = () => this.$set({ count: 0 });
-}
-```
+  plus() {
+    this.data.count += 1;
+  }
 
-::: tip 两种方法风格都行
-ViewModel 在构造时会自动把原型方法绑定到实例,所以下面两种写法**都可以**直接当事件处理器传给 JSX:
-
-```ts
-class CounterVM extends ViewModelBase<CounterState> {
-  // 风格 A:箭头函数类字段
-  plus = () => this.$set({ count: this.data.count + 1 });
-
-  // 风格 B:普通原型方法(this 自动绑定)
   minus() {
-    this.$set({ count: this.data.count - 1 });
+    this.data.count -= 1;
+  }
+
+  reset() {
+    this.data.count = 0;
   }
 }
 ```
 
-随你喜好选。原型方法在 IDE 调试栈、继承覆盖、TypeScript 重载等场景下表现更自然;箭头函数字段更显式。
+::: tip 直接 mutate 就行
+bizify 底层是 valtio,所以 `this.data.x = y` / `this.data.list.push(x)` / `this.data.user.profile.name = 'X'` 都直接生效——不用 `$set`、不用 spread、不用 immer。
+
+方法既可以写成原型方法(如上),也可以写成箭头字段(`plus = () => { ... }`)。**两者都自动绑定 `this`**,可以直接当事件处理器传给 JSX。
 :::
 
 ### 2. 在组件中绑定
@@ -66,11 +62,11 @@ import { CounterVM } from './counter-vm';
 
 export function Counter() {
   const vm = useViewModel(CounterVM);
-  const count = vm.use((s) => s.count);
+  const snap = vm.use();   // 自动追踪读到的字段
 
   return (
     <div>
-      <h1>{count}</h1>
+      <h1>{snap.count}</h1>
       <button onClick={vm.minus}>-</button>
       <button onClick={vm.reset}>reset</button>
       <button onClick={vm.plus}>+</button>
@@ -99,14 +95,14 @@ describe('CounterVM', () => {
     const vm = new CounterVM();
     vm.plus();
     vm.plus();
-    expect(vm['data'].count).toBe(2);
+    expect(vm.data.count).toBe(2);
   });
 });
 ```
 
 ## 接下来
 
-- [ViewModel 基础](/guide/viewmodel):`$data` / `$set` / 异步方法
-- [订阅与派生](/guide/subscription):selector、shallow、`useDerived`
+- [ViewModel 基础](/guide/viewmodel):`$data` / 直接 mutate / 计算属性
+- [订阅与派生](/guide/subscription):自动追踪、`$watch`、命令式订阅
 - [生命周期](/guide/lifecycle):`onMount` / `onUnmount` 实战
 - [Provider 与 SSR](/guide/provider):跨组件共享、SSR 数据注入
