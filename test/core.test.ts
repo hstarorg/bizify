@@ -6,15 +6,24 @@ class CounterVM extends ViewModelBase<{ count: number; label: string }> {
     return { count: 0, label: 'init' };
   }
 
-  plus = () => this.$set({ count: this.data.count + 1 });
-  setLabel = (label: string) => this.$set({ label });
-  bump = () => this.$set((s) => ({ count: s.count + 1 }));
+  plus = () => {
+    this.data.count += 1;
+  };
+
+  setLabel(label: string) {
+    this.data.label = label;
+  }
+
+  bumpBy(n: number) {
+    this.data.count += n;
+  }
 }
 
 describe('core/ViewModelBase', () => {
-  it('initializes from $data()', () => {
+  it('initializes data from $data()', () => {
     const vm = new CounterVM();
-    expect(vm['data']).toEqual({ count: 0, label: 'init' });
+    expect(vm.data.count).toBe(0);
+    expect(vm.data.label).toBe('init');
   });
 
   it('merges constructor initial over $data()', () => {
@@ -24,34 +33,79 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new WithInitVM({ b: 99 });
-    expect(vm['data']).toEqual({ a: 1, b: 99 });
+    expect(vm.data.a).toBe(1);
+    expect(vm.data.b).toBe(99);
   });
 
-  it('$set with partial object merges into state', () => {
-    const vm = new CounterVM();
-    vm.plus();
-    expect(vm['data'].count).toBe(1);
-    expect(vm['data'].label).toBe('init');
-  });
-
-  it('$set with updater function reads previous state', () => {
-    const vm = new CounterVM();
-    vm.bump();
-    vm.bump();
-    expect(vm['data'].count).toBe(2);
-  });
-
-  it('$subscribe fires on state change with new and previous state', () => {
+  it('direct mutation triggers subscriptions (async batched)', async () => {
     const vm = new CounterVM();
     const listener = vi.fn();
     const unsub = vm.$subscribe(listener);
+
     vm.plus();
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener.mock.calls[0][0].count).toBe(1);
-    expect(listener.mock.calls[0][1].count).toBe(0);
+    // valtio's subscribe is async — it batches notifications to the next microtask
+    await Promise.resolve();
+    expect(listener).toHaveBeenCalled();
+
+    const callsBefore = listener.mock.calls.length;
     unsub();
     vm.plus();
-    expect(listener).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(listener.mock.calls.length).toBe(callsBefore);
+  });
+
+  it('prototype methods can mutate this.data', () => {
+    const vm = new CounterVM();
+    vm.bumpBy(5);
+    expect(vm.data.count).toBe(5);
+    vm.setLabel('done');
+    expect(vm.data.label).toBe('done');
+  });
+
+  it('$watch fires on specific key change with new value', async () => {
+    const vm = new CounterVM();
+    const listener = vi.fn();
+    const unsub = vm.$watch('count', listener);
+
+    vm.plus();
+    // valtio's subscribeKey is async (microtask) — wait for it
+    await Promise.resolve();
+    expect(listener).toHaveBeenCalledWith(1);
+
+    // changing label should not trigger count watcher
+    listener.mockClear();
+    vm.setLabel('foo');
+    await Promise.resolve();
+    expect(listener).not.toHaveBeenCalled();
+
+    unsub();
+  });
+
+  it('computed getter declared in $data is reactive on the proxy', () => {
+    type CartState = {
+      items: number[];
+      readonly total: number;
+    };
+    class CartVM extends ViewModelBase<CartState> {
+      protected $data(): CartState {
+        return {
+          items: [],
+          get total() {
+            return this.items.reduce((s, n) => s + n, 0);
+          },
+        };
+      }
+      add(n: number) {
+        this.data.items.push(n);
+      }
+    }
+
+    const vm = new CartVM();
+    expect(vm.data.total).toBe(0);
+    vm.add(5);
+    expect(vm.data.total).toBe(5);
+    vm.add(10);
+    expect(vm.data.total).toBe(15);
   });
 
   it('lifecycle: onInit fires on construction', () => {
@@ -85,14 +139,14 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new LifeVM();
 
-    vm.__mount(); // 0 -> 1: onMount
-    vm.__mount(); // 1 -> 2
+    vm.__mount();
+    vm.__mount();
     expect(onMount).toHaveBeenCalledOnce();
 
-    vm.__unmount(); // 2 -> 1
+    vm.__unmount();
     expect(onUnmount).not.toHaveBeenCalled();
 
-    vm.__unmount(); // 1 -> 0: onUnmount
+    vm.__unmount();
     expect(onUnmount).toHaveBeenCalledOnce();
   });
 
@@ -112,28 +166,43 @@ describe('core/ViewModelBase', () => {
     expect(onDispose).toHaveBeenCalledOnce();
   });
 
+  it('disposed VM ignores __mount / __unmount', () => {
+    const onMount = vi.fn();
+    class LifeVM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+      protected onMount() {
+        onMount();
+      }
+    }
+    const vm = new LifeVM();
+    vm.dispose();
+    vm.__mount();
+    expect(onMount).not.toHaveBeenCalled();
+  });
+
   it('prototype methods are auto-bound to the instance', () => {
     class ProtoVM extends ViewModelBase<{ count: number }> {
       protected $data() {
         return { count: 0 };
       }
       plus() {
-        this.$set({ count: this.data.count + 1 });
+        this.data.count += 1;
       }
-      // Mixed: prototype method calling another prototype method
       plusBy(n: number) {
-        this.$set({ count: this.data.count + n });
+        this.data.count += n;
       }
     }
 
     const vm = new ProtoVM();
-    const { plus, plusBy } = vm; // destructure — would lose `this` without auto-bind
+    const { plus, plusBy } = vm;
 
     plus();
-    expect(vm['data'].count).toBe(1);
+    expect(vm.data.count).toBe(1);
 
     plusBy(5);
-    expect(vm['data'].count).toBe(6);
+    expect(vm.data.count).toBe(6);
   });
 
   it('subclass override of a prototype method is preserved by auto-bind', () => {
@@ -142,19 +211,19 @@ describe('core/ViewModelBase', () => {
         return { tag: '' };
       }
       greet() {
-        this.$set({ tag: 'A' });
+        this.data.tag = 'A';
       }
     }
     class B extends A {
       greet() {
-        this.$set({ tag: 'B' });
+        this.data.tag = 'B';
       }
     }
 
     const vm = new B();
     const fn = vm.greet;
     fn();
-    expect(vm['data'].tag).toBe('B');
+    expect(vm.data.tag).toBe('B');
   });
 
   it('arrow class fields still take precedence over prototype methods', () => {
@@ -162,21 +231,23 @@ describe('core/ViewModelBase', () => {
       protected $data() {
         return { via: '' };
       }
-      greet = () => this.$set({ via: 'arrow' });
+      greet = () => {
+        this.data.via = 'arrow';
+      };
       hello() {
-        this.$set({ via: 'proto' });
+        this.data.via = 'proto';
       }
     }
 
     const vm = new VM();
     const { greet, hello } = vm;
     greet();
-    expect(vm['data'].via).toBe('arrow');
+    expect(vm.data.via).toBe('arrow');
     hello();
-    expect(vm['data'].via).toBe('proto');
+    expect(vm.data.via).toBe('proto');
   });
 
-  it('inherited base-class methods (e.g. dispose, $subscribe) are also bound', () => {
+  it('inherited base-class methods are auto-bound', () => {
     class VM extends ViewModelBase<{ x: number }> {
       protected $data() {
         return { x: 0 };
@@ -192,21 +263,5 @@ describe('core/ViewModelBase', () => {
     unsub();
 
     expect(() => dispose()).not.toThrow();
-  });
-
-  it('disposed VM ignores __mount / __unmount', () => {
-    const onMount = vi.fn();
-    class LifeVM extends ViewModelBase<{ x: number }> {
-      protected $data() {
-        return { x: 0 };
-      }
-      protected onMount() {
-        onMount();
-      }
-    }
-    const vm = new LifeVM();
-    vm.dispose();
-    vm.__mount();
-    expect(onMount).not.toHaveBeenCalled();
   });
 });

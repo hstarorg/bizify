@@ -7,25 +7,27 @@ class CartVM extends ViewModelBase<{ items: string[] }> {
   protected $data() {
     return { items: [] as string[] };
   }
-  add = (item: string) => this.$set({ items: [...this.data.items, item] });
+  add = (item: string) => {
+    this.data.items.push(item);
+  };
 }
 
 describe('createViewModelContext', () => {
-  it('Provider creates one VM shared across the subtree', () => {
+  it('Provider creates one VM shared across the subtree', async () => {
     const { Provider, useVM } = createViewModelContext(CartVM);
 
     function Header() {
       const vm = useVM();
-      const count = vm.use((s) => s.items.length);
-      return <div data-testid="header">{count}</div>;
+      const snap = vm.use();
+      return <div data-testid="header">{snap.items.length}</div>;
     }
 
     let vmRef: CartVM | null = null;
     function Body() {
       const vm = useVM();
       vmRef = vm;
-      const items = vm.use((s) => s.items);
-      return <div data-testid="body">{items.join(',')}</div>;
+      const snap = vm.use();
+      return <div data-testid="body">{snap.items.join(',')}</div>;
     }
 
     render(
@@ -38,7 +40,7 @@ describe('createViewModelContext', () => {
     expect(screen.getByTestId('header')).toHaveTextContent('0');
     expect(screen.getByTestId('body')).toHaveTextContent('');
 
-    act(() => {
+    await act(async () => {
       vmRef!.add('apple');
     });
     expect(screen.getByTestId('header')).toHaveTextContent('1');
@@ -49,8 +51,8 @@ describe('createViewModelContext', () => {
     const { Provider, useVM } = createViewModelContext(CartVM);
 
     function View() {
-      const items = useVM().use((s) => s.items);
-      return <div data-testid="v">{items.join(',')}</div>;
+      const snap = useVM().use();
+      return <div data-testid="v">{snap.items.join(',')}</div>;
     }
 
     render(
@@ -163,8 +165,8 @@ describe('createViewModelContext', () => {
     const { Provider, useVM } = createViewModelContext(CartVM);
 
     function View() {
-      const items = useVM().use((s) => s.items);
-      return <div data-testid="v">{items.join(',')}</div>;
+      const snap = useVM().use();
+      return <div data-testid="v">{snap.items.join(',')}</div>;
     }
 
     const { rerender } = render(

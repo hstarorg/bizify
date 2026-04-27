@@ -1,13 +1,19 @@
-import { createStore, type StoreApi } from 'zustand/vanilla';
+import { proxy, subscribe } from 'valtio/vanilla';
+import { subscribeKey } from 'valtio/utils';
 import { isDev } from '../internal/dev';
 
 export type ViewModelState = Record<string, unknown>;
 
 /**
- * Framework-agnostic ViewModel base class.
+ * Framework-agnostic ViewModel base class, backed by valtio.
  *
- * Subclasses implement `$data()` to declare initial state, then mutate via
- * `$set()`. Views (or any consumer) subscribe via `$subscribe()`.
+ * - `this.data` is a valtio proxy. Read it directly, mutate it directly:
+ *   `this.data.count++` / `this.data.items.push(x)` / `this.data.user.name = 'X'`.
+ * - Computed properties are declared as **getters in `$data()` return**, e.g.
+ *   `get total() { return this.items.reduce(...); }`. Both `vm.data.total` and
+ *   `useSnapshot(vm.data).total` work and auto-track dependencies.
+ * - `$subscribe(cb)` for any-state-change notifications.
+ * - `$watch(key, cb)` for single-key change notifications (with prev/next).
  *
  * Lifecycle hooks (override as needed):
  *   - `onInit`     fires once when the instance is constructed
@@ -15,76 +21,53 @@ export type ViewModelState = Record<string, unknown>;
  *   - `onUnmount`  fires when the last view detaches (ref count goes 1 -> 0)
  *   - `onDispose`  fires only when `dispose()` is called explicitly
  *
- * Note: in React 18 StrictMode, components mount → unmount → mount in dev,
- * which means `onMount` / `onUnmount` may fire twice in a row. Keep them
- * idempotent (same as React's `useEffect` contract).
+ * In React 18 StrictMode, `onMount` / `onUnmount` are coalesced to fire
+ * exactly once per real mount/unmount via the React layer's lifecycle binding.
  */
 export abstract class ViewModelBase<T extends ViewModelState> {
-  protected readonly store: StoreApi<T>;
+  readonly data: T;
 
   private mountCount = 0;
   private disposed = false;
 
   constructor(initial?: Partial<T>) {
-    this.store = createStore<T>(() => ({
-      ...this.$data(),
-      ...(initial as Partial<T> | undefined),
-    }));
+    // Preserve getter descriptors from $data() — spread/assign would copy
+    // value snapshots and kill computed properties.
+    const baseShape = this.$data();
+    const seed: Record<string, unknown> = {};
+    Object.defineProperties(seed, Object.getOwnPropertyDescriptors(baseShape));
+    if (initial) {
+      // Initial overrides apply as plain values; users shouldn't override
+      // computed keys.
+      Object.assign(seed, initial);
+    }
+    this.data = proxy(seed) as T;
     this.autoBindPrototypeMethods();
     this.onInit();
-  }
-
-  /**
-   * Walk the prototype chain and bind every method to `this` as a
-   * non-enumerable own property. Lets users define methods either as
-   * arrow class fields (`plus = () => ...`) or as plain prototype methods
-   * (`plus() { ... }`) — both can be passed as handlers without losing
-   * `this`.
-   *
-   * Skipped:
-   *   - `constructor`
-   *   - getters/setters (e.g. `data` accessor)
-   *   - non-function descriptors
-   *   - properties already defined on the instance (arrow fields shadow)
-   */
-  private autoBindPrototypeMethods(): void {
-    let proto: object | null = Object.getPrototypeOf(this);
-    while (proto && proto !== Object.prototype) {
-      for (const name of Object.getOwnPropertyNames(proto)) {
-        if (name === 'constructor') continue;
-        if (Object.prototype.hasOwnProperty.call(this, name)) continue;
-        const desc = Object.getOwnPropertyDescriptor(proto, name);
-        if (!desc || desc.get || desc.set) continue;
-        if (typeof desc.value !== 'function') continue;
-        Object.defineProperty(this, name, {
-          value: (desc.value as (...args: unknown[]) => unknown).bind(this),
-          writable: true,
-          configurable: true,
-          enumerable: false,
-        });
-      }
-      proto = Object.getPrototypeOf(proto);
-    }
   }
 
   /** Declare the initial state. Called once by the constructor. */
   protected abstract $data(): T;
 
-  /** Read the current state snapshot. Not reactive. */
-  protected get data(): T {
-    return this.store.getState();
+  /**
+   * Subscribe to any state change. Callback receives no args; use
+   * `import { snapshot } from 'valtio'` to capture the current snapshot
+   * if you need it.
+   */
+  $subscribe(listener: () => void): () => void {
+    return subscribe(this.data, listener);
   }
 
-  /** Update state. Accepts a partial object or an updater function. */
-  protected readonly $set = (
-    updater: Partial<T> | ((s: T) => Partial<T>),
-  ): void => {
-    this.store.setState(updater as Parameters<StoreApi<T>['setState']>[0]);
-  };
-
-  /** Subscribe to state changes. Returns an unsubscribe function. */
-  $subscribe(listener: (state: T, prev: T) => void): () => void {
-    return this.store.subscribe(listener);
+  /**
+   * Subscribe to a single state key. Callback receives the new value.
+   * For deep paths, prefer composing computed getters in `$data` and
+   * watching the computed key.
+   */
+  $watch<K extends keyof T>(
+    key: K,
+    listener: (value: T[K]) => void,
+  ): () => void {
+    return subscribeKey(this.data, key as string, listener as (v: unknown) => void);
   }
 
   // ─── lifecycle hooks (subclasses override) ───────────────────────────
@@ -131,5 +114,38 @@ export abstract class ViewModelBase<T extends ViewModelState> {
     if (this.disposed) return;
     this.disposed = true;
     this.onDispose();
+  }
+
+  /**
+   * Walk the prototype chain and bind every method to `this` as a
+   * non-enumerable own property. Lets users define methods either as
+   * arrow class fields (`plus = () => ...`) or as plain prototype methods
+   * (`plus() { ... }`) — both can be passed as handlers without losing
+   * `this`.
+   *
+   * Skipped:
+   *   - `constructor`
+   *   - getters/setters (e.g. `data` accessor)
+   *   - non-function descriptors
+   *   - properties already defined on the instance (arrow fields shadow)
+   */
+  private autoBindPrototypeMethods(): void {
+    let proto: object | null = Object.getPrototypeOf(this);
+    while (proto && proto !== Object.prototype) {
+      for (const name of Object.getOwnPropertyNames(proto)) {
+        if (name === 'constructor') continue;
+        if (Object.prototype.hasOwnProperty.call(this, name)) continue;
+        const desc = Object.getOwnPropertyDescriptor(proto, name);
+        if (!desc || desc.get || desc.set) continue;
+        if (typeof desc.value !== 'function') continue;
+        Object.defineProperty(this, name, {
+          value: (desc.value as (...args: unknown[]) => unknown).bind(this),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+      proto = Object.getPrototypeOf(proto);
+    }
   }
 }

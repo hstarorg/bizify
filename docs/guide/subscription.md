@@ -22,24 +22,35 @@ function OrderList() {
 
 `vm.setFilter('xxx')` 只触发 `OrderHeader` 重渲染,`OrderList` 不重渲染。反之亦然。
 
-## 多字段订阅:shallow
+## 多字段订阅
 
-如果想一次订阅多个字段,直接返回对象会导致**每次都是新引用**,默认的 `Object.is` 比较会判定为变化。**第二个参数传 `'shallow'`** 启用浅比较:
+字段一多,一个个写 selector 就太啰嗦了。三种写法,**优先用 `usePick`**:
 
 ```tsx
 function OrderToolbar() {
   const vm = useViewModel(OrderVM);
 
-  // ❌ 每次都返回新对象,组件每次都重渲染
-  const { filter, sort } = vm.use((s) => ({ filter: s.filter, sort: s.sort }));
+  // ✅ 推荐:usePick——字段名只写一次,内部 shallow 比较
+  const { filter, sort } = vm.usePick('filter', 'sort');
 
-  // ✅ 浅比较,只在 filter 或 sort 真的变了时重渲染
+  // ⚠️ 也行:use + 对象 + shallow,等价但啰嗦
   const { filter, sort } = vm.use(
     (s) => ({ filter: s.filter, sort: s.sort }),
     'shallow',
   );
+
+  // ❌ 不要:返回对象不加 shallow,每次都是新引用,无效重渲染爆炸
+  const { filter, sort } = vm.use((s) => ({ filter: s.filter, sort: s.sort }));
 }
 ```
+
+`usePick` 的类型签名:`<K extends keyof T>(...keys: K[]): Pick<T, K>`——TypeScript 会准确推导出返回类型,IDE 自动补全 keys。
+
+::: tip 字段越多越值得用 usePick
+- 1 个字段 → `vm.use(s => s.x)` 最直接
+- 2 个以上 → `vm.usePick(...)` 更短
+- 想订阅全状态 → 应该重新审视组件粒度,通常意味着应该拆成多个组件
+:::
 
 ## 订阅整个状态(不推荐)
 

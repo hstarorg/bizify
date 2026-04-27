@@ -1,6 +1,6 @@
 # Bizify
 
-> 轻量的 React MVVM 框架。把业务逻辑写在 ViewModel 里,视图只负责渲染。基于 [zustand](https://github.com/pmndrs/zustand) 实现。
+> 轻量的 React MVVM 框架。把业务逻辑写在 ViewModel 里,视图只负责渲染。基于 [valtio](https://github.com/pmndrs/valtio) 实现,自动追踪 + 直接 mutate。
 
 [![npm](https://img.shields.io/npm/v/bizify.svg)](https://www.npmjs.com/package/bizify)
 [![license](https://img.shields.io/npm/l/bizify.svg)](./LICENSE)
@@ -22,8 +22,12 @@ export class CounterVM extends ViewModelBase<{ count: number }> {
     return { count: 0 };
   }
 
-  plus = () => this.$set({ count: this.data.count + 1 });
-  minus = () => this.$set({ count: this.data.count - 1 });
+  plus() {
+    this.data.count += 1;
+  }
+  minus() {
+    this.data.count -= 1;
+  }
 }
 ```
 
@@ -34,12 +38,12 @@ import { CounterVM } from './counter-vm';
 
 export function Counter() {
   const vm = useViewModel(CounterVM);
-  const count = vm.use((s) => s.count);
+  const snap = vm.use();
 
   return (
     <div>
       <button onClick={vm.minus}>-</button>
-      <span>{count}</span>
+      <span>{snap.count}</span>
       <button onClick={vm.plus}>+</button>
     </div>
   );
@@ -49,11 +53,12 @@ export function Counter() {
 ## 核心特性
 
 - **MVVM 架构** — VM 持有状态与行为,View 只关心渲染
-- **细粒度订阅** — selector + shallow,无关字段不触发重渲染
-- **生命周期** — `onInit` / `onMount` / `onUnmount` / `onDispose`,引用计数管理
+- **直接 mutate** — 基于 valtio,`this.data.x = y` 自动响应,深度嵌套也行
+- **自动追踪订阅** — `vm.use()` 读什么订什么,无需 selector / shallow
+- **计算属性** — 在 `$data` 里写 getter,自动追踪依赖
+- **生命周期** — `onInit` / `onMount` / `onUnmount`,**StrictMode 隐形**(单触发,Vue 风格)
 - **SSR 友好** — Provider 模式,跨请求隔离,初始数据可注入
 - **类风格 OOP** — 业务逻辑可独立单测,无需 mock React
-- **轻量** — 不到 1KB,基于 zustand
 
 ## API 概览
 

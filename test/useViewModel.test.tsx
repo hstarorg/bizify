@@ -7,38 +7,43 @@ class CounterVM extends ViewModelBase<{ count: number; other: number }> {
   protected $data() {
     return { count: 0, other: 0 };
   }
-  plus = () => this.$set({ count: this.data.count + 1 });
-  bumpOther = () => this.$set({ other: this.data.other + 1 });
+  plus = () => {
+    this.data.count += 1;
+  };
+  bumpOther = () => {
+    this.data.other += 1;
+  };
 }
 
 describe('useViewModel', () => {
-  it('renders initial state and updates on $set', () => {
+  it('renders initial state and updates on mutation', async () => {
     let vmRef: CounterVM | null = null;
 
     function View() {
       const vm = useViewModel(CounterVM);
       vmRef = vm;
-      const count = vm.use((s) => s.count);
-      return <div data-testid="count">{count}</div>;
+      const snap = vm.use();
+      return <div data-testid="count">{snap.count}</div>;
     }
 
     render(<View />);
     expect(screen.getByTestId('count')).toHaveTextContent('0');
 
-    act(() => {
+    await act(async () => {
       vmRef!.plus();
     });
     expect(screen.getByTestId('count')).toHaveTextContent('1');
   });
 
-  it('selector subscribes only to selected slice (no re-render on unrelated change)', () => {
+  it('auto-tracking: components only re-render when accessed fields change', async () => {
     let vmRef: CounterVM | null = null;
     const renderSpy = vi.fn();
 
     function View() {
       const vm = useViewModel(CounterVM);
       vmRef = vm;
-      const count = vm.use((s) => s.count);
+      const snap = vm.use();
+      const count = snap.count; // only access count → only subscribe to count
       renderSpy();
       return <div data-testid="count">{count}</div>;
     }
@@ -46,26 +51,36 @@ describe('useViewModel', () => {
     render(<View />);
     const initialRenders = renderSpy.mock.calls.length;
 
-    act(() => {
+    // Mutating `other` should NOT trigger re-render — wasn't accessed
+    await act(async () => {
       vmRef!.bumpOther();
     });
     expect(renderSpy.mock.calls.length).toBe(initialRenders);
 
-    act(() => {
+    // Mutating `count` SHOULD trigger re-render
+    await act(async () => {
       vmRef!.plus();
     });
     expect(renderSpy.mock.calls.length).toBe(initialRenders + 1);
   });
 
-  it('useDerived subscribes to a value computed from `this`', () => {
-    class CartVM extends ViewModelBase<{ items: number[] }> {
-      protected $data() {
-        return { items: [] as number[] };
+  it('computed getter in $data tracks dependencies through snapshot', async () => {
+    type CartState = {
+      items: number[];
+      readonly total: number;
+    };
+    class CartVM extends ViewModelBase<CartState> {
+      protected $data(): CartState {
+        return {
+          items: [],
+          get total() {
+            return this.items.reduce((s, n) => s + n, 0);
+          },
+        };
       }
-      get total() {
-        return this.data.items.reduce((s, n) => s + n, 0);
+      addItem(n: number) {
+        this.data.items.push(n);
       }
-      addItem = (n: number) => this.$set({ items: [...this.data.items, n] });
     }
 
     let vmRef: CartVM | null = null;
@@ -73,42 +88,47 @@ describe('useViewModel', () => {
     function View() {
       const vm = useViewModel(CartVM);
       vmRef = vm;
-      const total = vm.useDerived((v) => v.total);
-      return <div data-testid="total">{total}</div>;
+      const snap = vm.use();
+      return <div data-testid="total">{snap.total}</div>;
     }
 
     render(<View />);
     expect(screen.getByTestId('total')).toHaveTextContent('0');
 
-    act(() => {
+    await act(async () => {
       vmRef!.addItem(10);
       vmRef!.addItem(20);
     });
     expect(screen.getByTestId('total')).toHaveTextContent('30');
   });
 
-  it('use() with shallow equality avoids re-render when slice is shallow-equal', () => {
-    let vmRef: CounterVM | null = null;
-    const renderSpy = vi.fn();
+  it('prototype methods can be passed directly as event handlers', async () => {
+    class ProtoVM extends ViewModelBase<{ count: number }> {
+      protected $data() {
+        return { count: 0 };
+      }
+      increment() {
+        this.data.count += 1;
+      }
+    }
 
     function View() {
-      const vm = useViewModel(CounterVM);
-      vmRef = vm;
-      const slice = vm.use(
-        (s) => ({ count: s.count }),
-        'shallow',
+      const vm = useViewModel(ProtoVM);
+      const snap = vm.use();
+      return (
+        <button data-testid="btn" onClick={vm.increment}>
+          {snap.count}
+        </button>
       );
-      renderSpy();
-      return <div data-testid="count">{slice.count}</div>;
     }
 
     render(<View />);
-    const initialRenders = renderSpy.mock.calls.length;
+    expect(screen.getByTestId('btn')).toHaveTextContent('0');
 
-    act(() => {
-      vmRef!.bumpOther();
+    await act(async () => {
+      screen.getByTestId('btn').click();
     });
-    expect(renderSpy.mock.calls.length).toBe(initialRenders);
+    expect(screen.getByTestId('btn')).toHaveTextContent('1');
   });
 
   it('lifecycle: onMount fires once after render, onUnmount fires once after unmount', async () => {
@@ -137,7 +157,6 @@ describe('useViewModel', () => {
     }
 
     const { unmount } = render(<View />);
-    // Lifecycle is reconciled on the next microtask.
     await Promise.resolve();
     expect(onMount).toHaveBeenCalledOnce();
     expect(onUnmount).not.toHaveBeenCalled();
@@ -145,7 +164,6 @@ describe('useViewModel', () => {
     unmount();
     await Promise.resolve();
     expect(onUnmount).toHaveBeenCalledOnce();
-    // onDispose is intentionally not auto-called by useViewModel.
     expect(onDispose).not.toHaveBeenCalled();
   });
 
@@ -176,8 +194,6 @@ describe('useViewModel', () => {
       </StrictMode>,
     );
 
-    // React fires effect → cleanup → effect synchronously in StrictMode.
-    // Microtask reconciliation collapses this into a single onMount.
     await Promise.resolve();
     expect(onMount).toHaveBeenCalledTimes(1);
     expect(onUnmount).toHaveBeenCalledTimes(0);
@@ -188,78 +204,31 @@ describe('useViewModel', () => {
     expect(onUnmount).toHaveBeenCalledTimes(1);
   });
 
-  it('prototype methods can be passed directly as event handlers', () => {
-    class ProtoVM extends ViewModelBase<{ count: number }> {
-      protected $data() {
-        return { count: 0 };
+  it('nested mutation updates the view (valtio recursive proxy)', async () => {
+    type State = { user: { profile: { name: string } } };
+    class UserVM extends ViewModelBase<State> {
+      protected $data(): State {
+        return { user: { profile: { name: 'Tom' } } };
       }
-      // Note: NOT an arrow function — plain prototype method
-      increment() {
-        this.$set({ count: this.data.count + 1 });
+      rename(name: string) {
+        this.data.user.profile.name = name;
       }
     }
 
+    let vmRef: UserVM | null = null;
     function View() {
-      const vm = useViewModel(ProtoVM);
-      const count = vm.use((s) => s.count);
-      // Pass the raw prototype method; auto-bind makes `this` correct
-      return (
-        <button data-testid="btn" onClick={vm.increment}>
-          {count}
-        </button>
-      );
-    }
-
-    render(<View />);
-    expect(screen.getByTestId('btn')).toHaveTextContent('0');
-
-    act(() => {
-      screen.getByTestId('btn').click();
-    });
-    expect(screen.getByTestId('btn')).toHaveTextContent('1');
-  });
-
-  it('useDerived with shallow equality skips re-render when computed slice is shallow-equal', () => {
-    class CartVM extends ViewModelBase<{
-      items: { id: number; name: string }[];
-      filter: string;
-    }> {
-      protected $data() {
-        return { items: [{ id: 1, name: 'a' }], filter: '' };
-      }
-      get visible() {
-        return this.data.items.filter((i) => i.name.includes(this.data.filter));
-      }
-      bumpFilter = () => this.$set({ filter: this.data.filter });
-      addItem = (item: { id: number; name: string }) =>
-        this.$set((s) => ({ items: [...s.items, item] }));
-    }
-
-    let vmRef: CartVM | null = null;
-    const renderSpy = vi.fn();
-
-    function View() {
-      const vm = useViewModel(CartVM);
+      const vm = useViewModel(UserVM);
       vmRef = vm;
-      const visible = vm.useDerived((v) => v.visible, 'shallow');
-      renderSpy();
-      return <div data-testid="count">{visible.length}</div>;
+      const snap = vm.use();
+      return <div data-testid="name">{snap.user.profile.name}</div>;
     }
 
     render(<View />);
-    const initialRenders = renderSpy.mock.calls.length;
+    expect(screen.getByTestId('name')).toHaveTextContent('Tom');
 
-    // Re-running the same selector returns a new array reference but
-    // identical content. With 'shallow', no re-render.
-    act(() => {
-      vmRef!.bumpFilter();
+    await act(async () => {
+      vmRef!.rename('Jerry');
     });
-    expect(renderSpy.mock.calls.length).toBe(initialRenders);
-
-    // Adding an item changes the result → re-render.
-    act(() => {
-      vmRef!.addItem({ id: 2, name: 'b' });
-    });
-    expect(renderSpy.mock.calls.length).toBe(initialRenders + 1);
+    expect(screen.getByTestId('name')).toHaveTextContent('Jerry');
   });
 });

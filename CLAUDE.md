@@ -41,7 +41,7 @@ The library exposes one core abstraction: **`ViewModelBase`**, a class that pair
 Two layers:
 
 - **`src/core/ViewModelBase.ts`** — uses `zustand/vanilla`. Framework-agnostic: provides `$data()`, `$set`, `$subscribe`, lifecycle hooks (`onInit`/`onMount`/`onUnmount`/`onDispose`), ref-counted `__mount`/`__unmount`, idempotent `dispose()`. Does NOT contain React hooks.
-- **`src/react/ViewModelBase.ts`** — extends core, adds `use(selector, equality?)` and `useDerived(fn, equality?)` which call zustand's React `useStore` internally. These are React hooks; only callable inside components. `use()` without a selector subscribes to the whole state and emits a dev-mode console warning.
+- **`src/react/ViewModelBase.ts`** — extends core, adds `use(selector, equality?)`, `useDerived(fn, equality?)`, and `usePick(...keys)` which call zustand's React `useStore` internally. These are React hooks; only callable inside components. `use()` without a selector subscribes to the whole state and emits a dev-mode console warning. `usePick(...keys)` is shallow-eq sugar for picking multiple fields without writing each name twice.
 
 Two view-binding APIs in `src/react/`:
 

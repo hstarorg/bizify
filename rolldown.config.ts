@@ -4,9 +4,9 @@ const external = [
   'react',
   'react-dom',
   'react/jsx-runtime',
-  'zustand',
-  'zustand/vanilla',
-  'zustand/react/shallow',
+  'valtio',
+  'valtio/vanilla',
+  'valtio/utils',
 ];
 
 const input = {

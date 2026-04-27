@@ -1,62 +1,31 @@
-import { useStore } from 'zustand';
-import { useShallow } from 'zustand/react/shallow';
+import { useSnapshot } from 'valtio';
 import {
   ViewModelBase as CoreViewModelBase,
   type ViewModelState,
 } from '../core/ViewModelBase';
-import { isDev } from '../internal/dev';
-
-let coarseUseWarned = false;
 
 /**
  * React ViewModel base class.
  *
- * Extends the framework-agnostic core with React hooks:
- *   - `use(selector, equality?)`     fine-grained subscription
- *   - `useDerived(fn, equality?)`    subscribe to a derived value
+ * Adds `use()` — returns the valtio snapshot of `this.data` with auto-tracked
+ * reads. Component re-renders only when the fields you actually read change.
  *
- * The hook methods are React hooks — only callable inside components.
+ * Computed properties live in `$data()` as getters; they appear on `vm.data`
+ * and on the snapshot, both auto-tracked.
  */
 export abstract class ViewModelBase<
   T extends ViewModelState,
 > extends CoreViewModelBase<T> {
   /**
-   * Subscribe to a slice of state. Re-renders only when the slice changes.
-   * Pass `'shallow'` as second arg to compare returned objects shallowly.
-   */
-  use<U>(selector: (state: T) => U, equality?: 'shallow'): U;
-  /** Subscribe to the entire state. Re-renders on any change (discouraged). */
-  use(): T;
-  use<U>(selector?: (state: T) => U, equality?: 'shallow'): U | T {
-    if (!selector) {
-      if (isDev && !coarseUseWarned) {
-        coarseUseWarned = true;
-        console.warn(
-          '[bizify] vm.use() without a selector subscribes to the entire ' +
-            'state and re-renders on every change. Prefer ' +
-            'vm.use(s => s.field) for fine-grained updates.',
-        );
-      }
-      return useStore(this.store);
-    }
-    if (equality === 'shallow') {
-      return useStore(this.store, useShallow(selector));
-    }
-    return useStore(this.store, selector);
-  }
-
-  /**
-   * Subscribe to a value derived from this ViewModel (e.g. a class getter).
-   * Re-renders when the returned value changes (Object.is by default).
+   * Subscribe to the ViewModel's state. Returns a tracking snapshot —
+   * reading any field subscribes the component to that field.
    *
-   * Pass `'shallow'` for derived values that return new arrays/objects
-   * each call (e.g. computed lists), to avoid spurious re-renders.
+   * The return type is `T` (not `DeepReadonly<T>`) for ergonomic
+   * composition with child components. The returned object is still
+   * runtime-readonly: any write attempt is rejected by valtio.
+   * Mutate via `vm.data.x = ...` or class methods instead.
    */
-  useDerived<U>(compute: (vm: this) => U, equality?: 'shallow'): U {
-    const selector = () => compute(this);
-    if (equality === 'shallow') {
-      return useStore(this.store, useShallow(selector));
-    }
-    return useStore(this.store, selector);
+  use(): T {
+    return useSnapshot(this.data) as T;
   }
 }
