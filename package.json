@@ -1,6 +1,6 @@
 {
   "name": "bizify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lightweight React MVVM framework backed by zustand",
   "keywords": [
     "react",
