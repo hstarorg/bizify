@@ -39,11 +39,13 @@ bizify/
 
 ## 关键不变量
 
-### 1. 状态 mutable,snapshot readonly
+### 1. 状态 mutable,snapshot readonly,公开作用域受限
 
-- `vm.data.x = y` 直接 mutate,valtio 自动派发
+- `this.data.x = y` 在 VM 方法内直接 mutate,valtio 自动派发
+- `data` 是 **protected**,view 拿不到——强制 view 走 `useSnapshot()`,避免绕过封装直接改状态
 - `vm.useSnapshot()` 返回 snapshot——运行时 readonly(写入抛错),TS 类型脱回 `T`(便于和子组件 props 组合)
-- 约定:**修改走 `vm.data`,读取走 `vm.useSnapshot()`**
+- `$subscribe` / `$watch` 也是 **protected**,典型用法是 VM 在 `onMount` 里订阅自身。外部需要订阅时,在 VM 上暴露一个具体的 `onXxxChange(cb)` public 方法包一层
+- view 端 `vm.` 自动补全只看到:`useSnapshot()` / `$dispose()` / 子类自定义方法
 
 ### 2. 计算属性 = `$data()` 的 getter
 
@@ -76,19 +78,21 @@ $data(): CartState {
 
 - effect mount → desired=true,scheduleMicrotask
 - effect cleanup → desired=false,scheduleMicrotask
-- 微任务执行时只看最终 desired,只调用一次 `__mount` 或 `__unmount`
+- 微任务执行时只看最终 desired,只调用一次 `[VM_MOUNT]` 或 `[VM_UNMOUNT]`
 
 结果:**StrictMode 双跑、并发模式弃用提交、Suspense 重挂载,全部合并为单次 `onMount`/`onUnmount`**——业务代码不需要写 idempotent。
 
 ### 5. `$dispose()` 不自动触发
 
-`useViewModel` 和 `Provider` 的 effect cleanup 只调 `__unmount`,**不调 `$dispose`**。理由是 StrictMode 安全:cleanup → mount 循环不能销毁实例。
+`useViewModel` 和 `Provider` 的 effect cleanup 只调 `[VM_UNMOUNT]`,**不调 `$dispose`**。理由是 StrictMode 安全:cleanup → mount 循环不能销毁实例。
 
 `onDispose` 仅在用户显式 `vm.$dispose()` 时触发,留给容器/注册表/测试 teardown 场景。
 
-### 6. 引用计数
+### 6. 引用计数 + Symbol 键内部 API
 
-`__mount` / `__unmount` 内部维护 `mountCount`,只在 `0→1` / `1→0` 时触发 `onMount` / `onUnmount`。多个 binding 共享同一 VM 时(理论场景,实际很少触发)只触发一次生命周期。
+`[VM_MOUNT]` / `[VM_UNMOUNT]` 是 Symbol-keyed 方法,内部维护 `mountCount`,只在 `0→1` / `1→0` 时触发 `onMount` / `onUnmount`。
+
+**为什么用 Symbol**:从 view 视角的 `vm.` 自动补全里彻底消失,只有 framework 内部(`src/react/lifecycleBinding.ts`)显式 import 这两个 symbol 才能调用。比 `__` 前缀的"君子约定"硬。
 
 ## 视图绑定
 

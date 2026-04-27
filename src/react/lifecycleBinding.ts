@@ -1,11 +1,13 @@
+import { VM_MOUNT, VM_UNMOUNT } from '../core/ViewModelBase';
+
 /**
  * Internal helper: bridges React's effect lifecycle (which can fire
  * mount → cleanup → mount synchronously under StrictMode or discarded
  * concurrent commits) into a clean "mounted once / unmounted once"
  * contract on the underlying ViewModel.
  *
- * Strategy: don't call vm.__mount / vm.__unmount synchronously from the
- * effect. Track a desired state, schedule a microtask, and reconcile
+ * Strategy: don't call vm[VM_MOUNT] / vm[VM_UNMOUNT] synchronously from
+ * the effect. Track a desired state, schedule a microtask, and reconcile
  * to the final state once the synchronous burst settles.
  *
  * Effect:
@@ -16,8 +18,8 @@
  *   - A real unmount fires onUnmount once on the next microtask
  */
 interface VmBinding {
-  __mount(): void;
-  __unmount(): void;
+  [VM_MOUNT](): void;
+  [VM_UNMOUNT](): void;
 }
 
 export interface LifecycleBinding {
@@ -36,10 +38,10 @@ export function createLifecycleBinding(vm: VmBinding): LifecycleBinding {
     scheduled = false;
     if (desired === actualMounted) return;
     if (desired) {
-      vm.__mount();
+      vm[VM_MOUNT]();
       actualMounted = true;
     } else {
-      vm.__unmount();
+      vm[VM_UNMOUNT]();
       actualMounted = false;
     }
   }
