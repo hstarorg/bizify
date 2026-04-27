@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
+import { isDev } from '../internal/dev';
 
 export type ViewModelState = Record<string, unknown>;
 
@@ -12,7 +13,11 @@ export type ViewModelState = Record<string, unknown>;
  *   - `onInit`     fires once when the instance is constructed
  *   - `onMount`    fires when the first view attaches (ref count goes 0 -> 1)
  *   - `onUnmount`  fires when the last view detaches (ref count goes 1 -> 0)
- *   - `onDispose`  fires when the instance is permanently torn down
+ *   - `onDispose`  fires only when `dispose()` is called explicitly
+ *
+ * Note: in React 18 StrictMode, components mount → unmount → mount in dev,
+ * which means `onMount` / `onUnmount` may fire twice in a row. Keep them
+ * idempotent (same as React's `useEffect` contract).
  */
 export abstract class ViewModelBase<T extends ViewModelState> {
   protected readonly store: StoreApi<T>;
@@ -67,19 +72,30 @@ export abstract class ViewModelBase<T extends ViewModelState> {
   /** @internal Called by view bindings on unmount. */
   __unmount(): void {
     if (this.disposed) return;
-    this.mountCount = Math.max(0, this.mountCount - 1);
+    if (this.mountCount === 0) {
+      if (isDev) {
+        console.warn(
+          '[bizify] __unmount() called without a matching __mount(). ' +
+            'This usually indicates a binding bug.',
+        );
+      }
+      return;
+    }
+    this.mountCount--;
     if (this.mountCount === 0) this.onUnmount();
   }
 
-  /** Tear down the instance. Idempotent. */
+  /**
+   * Tear down the instance. Idempotent. Triggers `onDispose`.
+   *
+   * Not called automatically by `useViewModel` or the Provider from
+   * `createViewModelContext` — those rely on `onUnmount` for cleanup so
+   * they remain safe under React StrictMode. Call this explicitly when
+   * you need a one-shot teardown (tests, container/registry patterns).
+   */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.onDispose();
-  }
-
-  /** @internal Expose the underlying store for view bindings. */
-  __getStore(): StoreApi<T> {
-    return this.store;
   }
 }

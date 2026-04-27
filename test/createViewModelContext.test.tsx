@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { StrictMode } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { ViewModelBase, createViewModelContext } from '../src';
 
@@ -74,12 +75,20 @@ describe('createViewModelContext', () => {
     consoleError.mockRestore();
   });
 
-  it('Provider unmount disposes the VM', () => {
+  it('Provider lifecycle: onMount on mount, onUnmount on unmount, no auto-dispose', () => {
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
     const onDispose = vi.fn();
 
     class LifeVM extends ViewModelBase<{ x: number }> {
       protected $data() {
         return { x: 0 };
+      }
+      protected onMount() {
+        onMount();
+      }
+      protected onUnmount() {
+        onUnmount();
       }
       protected onDispose() {
         onDispose();
@@ -98,9 +107,75 @@ describe('createViewModelContext', () => {
         <View />
       </Provider>,
     );
-    expect(onDispose).not.toHaveBeenCalled();
+    expect(onMount).toHaveBeenCalledOnce();
+    expect(onUnmount).not.toHaveBeenCalled();
 
     unmount();
-    expect(onDispose).toHaveBeenCalledOnce();
+    expect(onUnmount).toHaveBeenCalledOnce();
+    // Provider does not auto-call dispose() — StrictMode safety.
+    expect(onDispose).not.toHaveBeenCalled();
+  });
+
+  it('StrictMode: Provider lifecycle remains correct under double-effect', () => {
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
+
+    class LifeVM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+      protected onMount() {
+        onMount();
+      }
+      protected onUnmount() {
+        onUnmount();
+      }
+    }
+
+    const { Provider, useVM } = createViewModelContext(LifeVM);
+
+    function View() {
+      useVM();
+      return null;
+    }
+
+    const { unmount } = render(
+      <StrictMode>
+        <Provider>
+          <View />
+        </Provider>
+      </StrictMode>,
+    );
+
+    // Same as useViewModel: StrictMode triggers two mount cycles.
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(onUnmount).toHaveBeenCalledTimes(2);
+  });
+
+  it('Provider initial prop is read once; later changes do not rebuild VM', () => {
+    const { Provider, useVM } = createViewModelContext(CartVM);
+
+    function View() {
+      const items = useVM().use((s) => s.items);
+      return <div data-testid="v">{items.join(',')}</div>;
+    }
+
+    const { rerender } = render(
+      <Provider initial={{ items: ['first'] }}>
+        <View />
+      </Provider>,
+    );
+    expect(screen.getByTestId('v')).toHaveTextContent('first');
+
+    // Changing the prop must NOT swap or reset state.
+    rerender(
+      <Provider initial={{ items: ['second'] }}>
+        <View />
+      </Provider>,
+    );
+    expect(screen.getByTestId('v')).toHaveTextContent('first');
   });
 });

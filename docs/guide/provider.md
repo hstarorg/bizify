@@ -59,12 +59,18 @@ function CartItems() {
 
 ## Provider 的生命周期
 
-Provider 自动管理 VM 实例的生命周期:
+Provider 管理 VM 实例的生命周期:
 
 - Provider mount → `new CartVM()` → `onInit()` → `onMount()`
-- Provider unmount → `onUnmount()` → `dispose()` → `onDispose()`
+- Provider unmount → `onUnmount()`
 
 子组件订阅/取消订阅不影响 VM 生命周期。
+
+::: warning onDispose 不会自动触发
+为了在 React 18 StrictMode 下保持安全,Provider **不会**自动调用 `vm.dispose()`。
+所有跟随视图生命周期的清理(定时器、事件监听等)放在 `onUnmount` 里。
+`onDispose` 仅在你显式调用 `vm.dispose()` 时触发,适合容器/注册表等手动管理实例的场景。
+:::
 
 ## 注入初始数据
 
@@ -77,6 +83,11 @@ Provider 自动管理 VM 实例的生命周期:
 ```
 
 VM 构造函数接收 `initial` 后,优先用它。这是 SSR 数据注入的关键。
+
+::: warning initial 只读一次
+`initial` prop **只在 Provider 第一次渲染时被读取**,后续 prop 变化不会重建 VM——这是为了 SSR hydrate 后状态稳定。
+如果你需要动态切换状态,在 VM 上暴露一个方法,从外部调用即可。
+:::
 
 ## SSR 模式
 

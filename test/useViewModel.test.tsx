@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { StrictMode } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { ViewModelBase, useViewModel } from '../src';
 
@@ -110,7 +111,7 @@ describe('useViewModel', () => {
     expect(renderSpy.mock.calls.length).toBe(initialRenders);
   });
 
-  it('lifecycle: onMount on render, onUnmount + onDispose on unmount', () => {
+  it('lifecycle: onMount on render, onUnmount on unmount, onDispose NOT auto-called', () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     const onDispose = vi.fn();
@@ -138,10 +139,93 @@ describe('useViewModel', () => {
     const { unmount } = render(<View />);
     expect(onMount).toHaveBeenCalledOnce();
     expect(onUnmount).not.toHaveBeenCalled();
-    expect(onDispose).not.toHaveBeenCalled();
 
     unmount();
     expect(onUnmount).toHaveBeenCalledOnce();
-    expect(onDispose).toHaveBeenCalledOnce();
+    // onDispose is intentionally not auto-called by useViewModel — keeps the
+    // binding safe under React 18 StrictMode.
+    expect(onDispose).not.toHaveBeenCalled();
+  });
+
+  it('StrictMode: onMount fires after each remount cycle', () => {
+    const onMount = vi.fn();
+    const onUnmount = vi.fn();
+
+    class LifeVM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+      protected onMount() {
+        onMount();
+      }
+      protected onUnmount() {
+        onUnmount();
+      }
+    }
+
+    function View() {
+      useViewModel(LifeVM);
+      return null;
+    }
+
+    const { unmount } = render(
+      <StrictMode>
+        <View />
+      </StrictMode>,
+    );
+
+    // Under StrictMode, useEffect runs twice in dev: mount → cleanup → mount.
+    // Both onMount calls must fire (i.e. the second mount is not swallowed
+    // by a stale `disposed` flag).
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(onUnmount).toHaveBeenCalledTimes(2);
+  });
+
+  it('useDerived with shallow equality skips re-render when computed slice is shallow-equal', () => {
+    class CartVM extends ViewModelBase<{
+      items: { id: number; name: string }[];
+      filter: string;
+    }> {
+      protected $data() {
+        return { items: [{ id: 1, name: 'a' }], filter: '' };
+      }
+      get visible() {
+        return this.data.items.filter((i) => i.name.includes(this.data.filter));
+      }
+      bumpFilter = () => this.$set({ filter: this.data.filter });
+      addItem = (item: { id: number; name: string }) =>
+        this.$set((s) => ({ items: [...s.items, item] }));
+    }
+
+    let vmRef: CartVM | null = null;
+    const renderSpy = vi.fn();
+
+    function View() {
+      const vm = useViewModel(CartVM);
+      vmRef = vm;
+      const visible = vm.useDerived((v) => v.visible, 'shallow');
+      renderSpy();
+      return <div data-testid="count">{visible.length}</div>;
+    }
+
+    render(<View />);
+    const initialRenders = renderSpy.mock.calls.length;
+
+    // Re-running the same selector returns a new array reference but
+    // identical content. With 'shallow', no re-render.
+    act(() => {
+      vmRef!.bumpFilter();
+    });
+    expect(renderSpy.mock.calls.length).toBe(initialRenders);
+
+    // Adding an item changes the result → re-render.
+    act(() => {
+      vmRef!.addItem({ id: 2, name: 'b' });
+    });
+    expect(renderSpy.mock.calls.length).toBe(initialRenders + 1);
   });
 });

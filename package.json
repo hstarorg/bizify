@@ -20,6 +20,9 @@
   "license": "MIT",
   "author": "hstarorg <hm910705@163.com>",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/types/react/index.d.ts",
   "files": [
     "dist",
     "README.md",
@@ -38,7 +41,8 @@
     }
   },
   "scripts": {
-    "build": "rolldown -c && tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "pnpm clean && rolldown -c && tsc -p tsconfig.build.json",
     "dev": "vitest",
     "test": "vitest run",
     "test:watch": "vitest",

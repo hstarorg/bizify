@@ -9,10 +9,14 @@ ViewModel 有四个生命周期钩子,按需重写即可。所有钩子默认空
 | `onInit` | 实例构造时(同步) | 同步初始化、读 localStorage |
 | `onMount` | 第一个 View 挂载时 | 启动副作用、定时器、订阅、首次拉数据 |
 | `onUnmount` | 最后一个 View 卸载时 | 清理副作用、定时器 |
-| `onDispose` | 实例彻底销毁时 | 回收资源、释放引用 |
+| `onDispose` | **显式**调用 `vm.dispose()` 时 | 一次性销毁(测试、容器/注册表) |
 
 ::: tip
 `onMount` / `onUnmount` 走**引用计数**——多个组件共享同一个 VM 时,只在第一个挂载/最后一个卸载时触发一次。
+:::
+
+::: warning React 18 StrictMode
+StrictMode 会故意 **mount → unmount → mount** 跑一遍来检测副作用纯度,所以你的 `onMount` / `onUnmount` 在 dev 模式下可能成对触发两次。**保持它们幂等**(和 `useEffect` 的契约一样)。
 :::
 
 ## 触发时序
@@ -32,8 +36,16 @@ new VM()
 
 [最后一个组件卸载]
   └─ onUnmount()             ← ref count 1 → 0
-  └─ onDispose()             ← Provider/useViewModel 同时调用 dispose()
+
+[显式 vm.dispose()]
+  └─ onDispose()             ← 仅手动调用时触发
 ```
+
+::: warning onDispose 不再自动触发
+之前版本里 `useViewModel` / Provider unmount 时会自动调 `dispose()`。1.0 起**不再这样**——
+StrictMode 的双跑机制会让自动 dispose 错误地销毁实例。**所有视图相关的清理都放在 `onUnmount`**,
+`onDispose` 留给显式销毁场景(测试 teardown、容器统一释放等)。
+:::
 
 ## 实战:轮询
 

@@ -10,7 +10,13 @@ import type { ViewModelBase } from './ViewModelBase';
 import type { ViewModelState } from '../core/ViewModelBase';
 
 export interface ViewModelProviderProps<T extends ViewModelState> {
-  /** Optional initial state to merge into the ViewModel on construction. */
+  /**
+   * Initial state to merge into the ViewModel on construction.
+   *
+   * Read **only on the first render** of the Provider. Changing this prop
+   * later does not rebuild the ViewModel — by design, to keep SSR hydration
+   * stable. If you need to swap state, expose a method on the ViewModel.
+   */
   initial?: Partial<T>;
   children: ReactNode;
 }
@@ -32,6 +38,10 @@ export interface ViewModelContext<
  *   - subtree-shared ViewModels (e.g. a Cart shared across cart-page children)
  *   - SSR (each request constructs its own instance via the Provider)
  *   - app-wide singletons (mount the Provider at the app root)
+ *
+ * **Note**: `dispose()` is *not* auto-called on Provider unmount, to stay
+ * safe under React 18 StrictMode. Put cleanup in `onUnmount`. Call
+ * `dispose()` explicitly only when you need a one-shot teardown.
  */
 export function createViewModelContext<
   T extends ViewModelState,
@@ -46,7 +56,6 @@ export function createViewModelContext<
       vm.__mount();
       return () => {
         vm.__unmount();
-        vm.dispose();
       };
     }, [vm]);
 

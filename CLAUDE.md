@@ -41,20 +41,22 @@ The library exposes one core abstraction: **`ViewModelBase`**, a class that pair
 Two layers:
 
 - **`src/core/ViewModelBase.ts`** — uses `zustand/vanilla`. Framework-agnostic: provides `$data()`, `$set`, `$subscribe`, lifecycle hooks (`onInit`/`onMount`/`onUnmount`/`onDispose`), ref-counted `__mount`/`__unmount`, idempotent `dispose()`. Does NOT contain React hooks.
-- **`src/react/ViewModelBase.ts`** — extends core, adds `use(selector, equality?)` and `useDerived(fn)` which call zustand's React `useStore` internally. These are React hooks; only callable inside components.
+- **`src/react/ViewModelBase.ts`** — extends core, adds `use(selector, equality?)` and `useDerived(fn, equality?)` which call zustand's React `useStore` internally. These are React hooks; only callable inside components. `use()` without a selector subscribes to the whole state and emits a dev-mode console warning.
 
 Two view-binding APIs in `src/react/`:
 
-- **`useViewModel(VM)`** — creates a new instance via `useState(() => new Ctor())`, runs `__mount` on first effect, `__unmount` + `dispose()` on unmount. For component-local state.
-- **`createViewModelContext(VM)`** — returns `{ Provider, useVM }`. Provider creates one instance for its subtree (lifetime tied to Provider mount/unmount). Supports `initial` prop for SSR data injection. For shared state and SSR.
+- **`useViewModel(VM)`** — creates a new instance via `useState(() => new Ctor())`, runs `__mount` on first effect, `__unmount` on unmount. For component-local state.
+- **`createViewModelContext(VM)`** — returns `{ Provider, useVM }`. Provider creates one instance for its subtree (lifetime tied to Provider mount/unmount). Supports `initial` prop for SSR data injection (read once on first render). For shared state and SSR.
+
+**Important — `dispose()` is NOT auto-called by either binding.** This keeps both bindings safe under React 18 StrictMode (which double-invokes effects in dev). Put view-tied cleanup in `onUnmount`. `onDispose` only fires when the user explicitly calls `vm.dispose()` (manual teardown, container/registry patterns, tests).
 
 Key invariants:
 
 - **`$set` is shallow merge**. Mutating nested state requires returning a new reference (`$set((s) => ({ items: [...s.items, x] }))`).
 - **Method-as-arrow-class-field** is the convention (`plus = () => ...`) so `this` binds correctly when methods are passed as event handlers. All examples and tests use this pattern.
 - **Lifecycle hooks have empty defaults** — subclasses don't need `super.xxx()`.
-- **`onMount` / `onUnmount` use ref counting** — multiple subscribers share one VM, hooks fire on first mount / last unmount only.
-- **`dispose()` is idempotent**, sets a `disposed` flag that ignores subsequent `__mount`/`__unmount` calls.
+- **`onMount` / `onUnmount` use ref counting** — multiple subscribers share one VM, hooks fire on first mount / last unmount only. Under React 18 StrictMode they may fire twice; subclass implementations must be idempotent (same contract as `useEffect`).
+- **`dispose()` is idempotent**, sets a `disposed` flag that ignores subsequent `__mount`/`__unmount` calls. View bindings do NOT call it automatically.
 
 ## Build pipeline
 
@@ -75,7 +77,7 @@ Three test files cover all public surface:
 
 - `test/core.test.ts` — ViewModelBase semantics (state, $set, $subscribe, lifecycle, dispose, ref counting)
 - `test/useViewModel.test.tsx` — React hook integration (mount, unmount, selector subscription, useDerived, shallow eq)
-- `test/createViewModelContext.test.tsx` — Provider sharing, initial injection, error when used outside Provider, dispose on unmount
+- `test/createViewModelContext.test.tsx` — Provider sharing, initial injection (and read-once invariant), error when used outside Provider, lifecycle, StrictMode behavior
 
 When changing public API, update both the type signatures AND the test that asserts the behavior.
 

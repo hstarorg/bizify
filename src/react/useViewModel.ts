@@ -3,12 +3,17 @@ import type { ViewModelBase } from './ViewModelBase';
 import type { ViewModelState } from '../core/ViewModelBase';
 
 /**
- * Create and bind a ViewModel to the current component. The instance lives
- * for the component's lifetime: `onMount` fires after the first render,
- * `onUnmount` + `dispose` fire on unmount.
+ * Create and bind a ViewModel to the current component. The instance is
+ * created once on first render. `onMount` fires after the first effect,
+ * `onUnmount` on unmount.
  *
- * Use this for component-local state (forms, detail pages, wizards). For
- * shared / SSR-friendly cases, prefer `createViewModelContext`.
+ * **Note**: `dispose()` is *not* auto-called on unmount, to keep the binding
+ * safe under React 18 StrictMode (which intentionally double-invokes
+ * effects in dev). Put view-tied cleanup in `onUnmount`. The instance is
+ * discarded by GC when the component is gone.
+ *
+ * Use this for component-local state. For shared / SSR-friendly cases,
+ * prefer `createViewModelContext`.
  */
 export function useViewModel<
   T extends ViewModelState,
@@ -20,7 +25,6 @@ export function useViewModel<
     vm.__mount();
     return () => {
       vm.__unmount();
-      vm.dispose();
     };
   }, [vm]);
 
