@@ -2,78 +2,92 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository layout
+## Repository overview
 
-Lerna + pnpm monorepo with two published packages:
+Single-package React MVVM library backed by zustand. Published as `bizify` with two entry points:
 
-- `packages/bizify-core` — view-framework-agnostic core. Exports `AbstractController`, `ControllerBase` (manual `$update`/`$updateByPath` via lodash.set), `ControllerBaseProxy` (Proxy-based reactive), and `ServiceWrapper` (async state).
-- `packages/bizify` — React bindings. Re-exports `ControllerBaseProxy` from core and adds `useController` (hooks) and `buildClassController` (class components). Depends on `bizify-core` via `workspace:^`.
+- `bizify` — React bindings (default entry)
+- `bizify/core` — framework-agnostic ViewModel base
 
-The `docs/` directory is a dumi documentation site (Chinese), built into `docs-dist/` and deployed to GitHub Pages.
+No monorepo, no Lerna, no workspaces. The whole library lives in `src/`.
 
 ## Common commands
 
-Run from the repo root unless noted:
-
 ```bash
-pnpm i                          # install all workspaces
-pnpm dev                        # start dumi docs site (alias: pnpm start)
-pnpm build                      # build both packages via father
-pnpm build:core                 # build bizify-core only
-pnpm test                       # lerna run test --stream (all packages)
-pnpm test:core                  # run only bizify-core's jest suite
-pnpm test:cov                   # coverage across packages
-pnpm run pub                    # build then `lerna publish` (the `run` matters)
-pnpm run pub:doc                # build docs and push docs-dist to gh-pages
+pnpm install         # install
+pnpm test            # vitest run (single pass)
+pnpm test:watch      # vitest watch
+pnpm test:cov        # coverage
+pnpm typecheck       # tsc --noEmit
+pnpm lint            # oxlint
+pnpm lint:fix        # oxlint --fix
+pnpm build           # rolldown + tsc (emit .d.ts)
+pnpm docs:dev        # VitePress local preview
+pnpm docs:build      # VitePress production build
+pnpm docs:deploy     # gh-pages deploy
 ```
 
-Single package / single test:
+Single test (vitest pattern match):
 
 ```bash
-# Run tests inside one package
-pnpm --filter bizify test
-pnpm --filter bizify-core test
-
-# Run a single test file (jest pattern match on path)
-pnpm --filter bizify-core exec jest ControllerBaseProxy
-
-# Lint a single package (no root lint script)
-pnpm --filter bizify lint        # lint:es + lint:css
+pnpm test -- core               # run tests matching "core"
+pnpm test -- useViewModel       # specific file
 ```
-
-Tests use ts-jest. `bizify-core` runs in `node` env; `bizify` runs in `jsdom` with `jest-setup.ts` (jest-dom matchers).
 
 ## Architecture
 
-The library separates **business logic** (Controllers) from **view rendering**. The bridge is a single primitive on `AbstractController`:
+The library exposes one core abstraction: **`ViewModelBase`**, a class that pairs state (zustand store) with lifecycle hooks and React-aware subscription methods.
 
-```ts
-$subscribe(subFn): () => void   // returns unsubscribe
-```
+Two layers:
 
-A view binding (`useController`, `buildClassController`) calls `__init(options)` on the controller, subscribes for change events, and forces a re-render on each event. Unsubscribe runs on unmount.
+- **`src/core/ViewModelBase.ts`** — uses `zustand/vanilla`. Framework-agnostic: provides `$data()`, `$set`, `$subscribe`, lifecycle hooks (`onInit`/`onMount`/`onUnmount`/`onDispose`), ref-counted `__mount`/`__unmount`, idempotent `dispose()`. Does NOT contain React hooks.
+- **`src/react/ViewModelBase.ts`** — extends core, adds `use(selector, equality?)` and `useDerived(fn)` which call zustand's React `useStore` internally. These are React hooks; only callable inside components.
 
-Two controller flavors share that interface:
+Two view-binding APIs in `src/react/`:
 
-- **`ControllerBaseProxy<TData>`** (recommended, what docs teach): user implements `$data()` returning the initial state. `__init` wraps it in a recursive `Proxy` (lazy: child objects are proxied on first access and cached in a `WeakMap`). Any `set`/`delete` on `this.data` calls `emitChange()`, which emits `EventTypes.Change` on an internal `EventEmitter`. `$batchUpdate(fn)` suppresses intermediate emits and fires once at the end (also on throw, then rethrows).
-- **`ControllerBase<TData>`** (manual): same `$data()` shape, but mutations go through `$update(part)` / `$updateByPath(path, value)` (lodash.set). It does not yet emit changes — treat as the simpler/legacy path.
+- **`useViewModel(VM)`** — creates a new instance via `useState(() => new Ctor())`, runs `__mount` on first effect, `__unmount` + `dispose()` on unmount. For component-local state.
+- **`createViewModelContext(VM)`** — returns `{ Provider, useVM }`. Provider creates one instance for its subtree (lifetime tied to Provider mount/unmount). Supports `initial` prop for SSR data injection. For shared state and SSR.
 
-Async work goes through **`$buildService(asyncFn)`** on `ControllerBaseProxy`, which returns a `ServiceWrapper` exposing `execute`, `loading`, `failed`, `loaded`, `data`, `error`. It tracks an in-flight request queue so out-of-order resolutions don't clobber the latest result, and notifies the controller (which re-emits change) on state transitions.
+Key invariants:
 
-Conventions worth preserving:
+- **`$set` is shallow merge**. Mutating nested state requires returning a new reference (`$set((s) => ({ items: [...s.items, x] }))`).
+- **Method-as-arrow-class-field** is the convention (`plus = () => ...`) so `this` binds correctly when methods are passed as event handlers. All examples and tests use this pattern.
+- **Lifecycle hooks have empty defaults** — subclasses don't need `super.xxx()`.
+- **`onMount` / `onUnmount` use ref counting** — multiple subscribers share one VM, hooks fire on first mount / last unmount only.
+- **`dispose()` is idempotent**, sets a `disposed` flag that ignores subsequent `__mount`/`__unmount` calls.
 
-- Define controller methods as **arrow function class fields** (`plus = () => { ... }`) so `this` stays bound when passed as event handlers — this is how all docs/examples are written.
-- Mutate via `this.data.x = ...` directly; the Proxy handles reactivity. Don't reassign `this.data`.
-- `emitChange` is an arrow function on purpose — it's passed into `ServiceWrapper` and must keep `this`.
+## Build pipeline
 
-## Build & release
+- **Rolldown** bundles JS:
+  - Two inputs: `src/index.ts` (React) → `dist/index.{js,cjs}`, `src/core/index.ts` → `dist/core.{js,cjs}`
+  - `react`, `react/jsx-runtime`, `zustand`, `zustand/vanilla`, `zustand/react/shallow` are external
+  - Shared code between entries goes into `dist/chunks/`
+- **tsc** (via `tsconfig.build.json`) emits `.d.ts` only into `dist/types/`, mirroring source layout
+- `package.json` `exports` field maps `.` and `./core` to the right `.js`/`.cjs`/`.d.ts` files
 
-- Both packages build with **father** (`father build`) into `dist/cjs` + `dist/esm` with `.d.ts`. `package.json` `files` ships `dist` minus `dist/__tests__`.
-- Publishing is driven by **lerna** (`pnpm run pub`): builds first, then `lerna publish` bumps versions across both packages together (lerna.json pins a shared `version`). `*.md` and `**/__tests__/**` changes are ignored for version bumps.
-- Husky enforces **commitlint (conventional commits)** on `commit-msg` and **lint-staged** (eslint + prettier + stylelint) on `pre-commit`. Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
+If editing `package.json` exports or build config, run `pnpm build && pnpm pack --pack-destination /tmp` and `tar -tzf` the tarball to verify product paths.
+
+## Tests
+
+Vitest with jsdom + `@testing-library/react`. Setup file `test/setup.ts` adds jest-dom matchers. Tests use **explicit imports** (`import { describe, it, expect } from 'vitest'`) — not globals.
+
+Three test files cover all public surface:
+
+- `test/core.test.ts` — ViewModelBase semantics (state, $set, $subscribe, lifecycle, dispose, ref counting)
+- `test/useViewModel.test.tsx` — React hook integration (mount, unmount, selector subscription, useDerived, shallow eq)
+- `test/createViewModelContext.test.tsx` — Provider sharing, initial injection, error when used outside Provider, dispose on unmount
+
+When changing public API, update both the type signatures AND the test that asserts the behavior.
+
+## Documentation site
+
+VitePress in `docs/`. Config at `docs/.vitepress/config.ts`. Output goes to `docs/.vitepress/dist`, deployed to gh-pages via `pnpm docs:deploy`. The site uses `base: '/bizify/'` because GitHub Pages serves it under that path.
+
+Markdown content under `docs/guide/` — Chinese-first prose, English code identifiers. Don't translate API names.
 
 ## Notes
 
-- React `>=18` is a peerDependency of `bizify`; the dev docs site uses antd v4.
-- Source comments and docs are largely in Chinese — preserve language when editing existing files.
-- `packages/bizify-core/src/interalUtil.ts` is intentionally spelled this way (typo baked in); do not "fix" without coordinating, as it's referenced across the package.
+- React `>=18` is an **optional** peer dependency (`peerDependenciesMeta.optional: true`) so non-React consumers using only `bizify/core` don't get a peer warning.
+- `tsconfig.json` uses `moduleResolution: Bundler` — required for `exports` field resolution. Don't change to `Node`.
+- The husky `pre-commit` hook runs `lint-staged` which runs `oxlint --fix`. There's no commit-msg hook (commitlint was removed).
+- `.oxlintrc.json` disables `react/react-in-jsx-scope` (React 17+ JSX runtime doesn't need React in scope).
