@@ -1,26 +1,5 @@
-import { ViewModelBase, useViewModel } from 'bizify';
-
-interface CounterState {
-  count: number;
-}
-
-class CounterVM extends ViewModelBase<CounterState> {
-  protected $data(): CounterState {
-    return { count: 0 };
-  }
-
-  plus() {
-    this.data.count += 1;
-  }
-
-  minus() {
-    this.data.count -= 1;
-  }
-
-  reset() {
-    this.data.count = 0;
-  }
-}
+import { useViewModel } from 'bizify';
+import { CounterVM } from './vm';
 
 const styles = {
   wrap: {

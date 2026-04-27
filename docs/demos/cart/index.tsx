@@ -1,63 +1,11 @@
-import { ViewModelBase, useViewModel } from 'bizify';
-
-interface Item {
-  id: string;
-  name: string;
-  price: number;
-}
-
-type CartState = {
-  items: Item[];
-  discount: number;
-  // computed
-  readonly subtotal: number;
-  readonly total: number;
-  readonly isEmpty: boolean;
-};
+import { useViewModel } from 'bizify';
+import { CartVM, type Item } from './vm';
 
 const CATALOG: Item[] = [
   { id: 'a', name: '苹果', price: 5 },
   { id: 'b', name: '香蕉', price: 3 },
   { id: 'c', name: '橙子', price: 6 },
 ];
-
-class CartVM extends ViewModelBase<CartState> {
-  protected $data(): CartState {
-    return {
-      items: [],
-      discount: 0,
-
-      get subtotal() {
-        return this.items.reduce((s, i) => s + i.price, 0);
-      },
-
-      get total() {
-        return Math.round(this.subtotal * (1 - this.discount) * 100) / 100;
-      },
-
-      get isEmpty() {
-        return this.items.length === 0;
-      },
-    };
-  }
-
-  add(item: Item) {
-    this.data.items.push(item);
-  }
-
-  remove(idx: number) {
-    this.data.items.splice(idx, 1);
-  }
-
-  setDiscount(d: number) {
-    this.data.discount = d;
-  }
-
-  clear() {
-    this.data.items = [];
-    this.data.discount = 0;
-  }
-}
 
 const styles = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 12 } as const,
@@ -98,11 +46,7 @@ export default function Cart() {
     <div style={styles.wrap}>
       <div style={styles.catalog}>
         {CATALOG.map((item) => (
-          <button
-            key={item.id}
-            style={styles.pill}
-            onClick={() => vm.add(item)}
-          >
+          <button key={item.id} style={styles.pill} onClick={() => vm.add(item)}>
             + {item.name} ¥{item.price}
           </button>
         ))}

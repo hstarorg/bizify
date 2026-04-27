@@ -1,8 +1,12 @@
 # ViewModel 基础
 
 <script setup>
-import Cart from '../demos/Cart.tsx';
-import Todo from '../demos/Todo.tsx';
+import Cart from '../demos/cart';
+import CartVMSrc from '../demos/cart/vm.ts?raw';
+import CartSrc from '../demos/cart/index.tsx?raw';
+import Todo from '../demos/todo';
+import TodoVMSrc from '../demos/todo/vm.ts?raw';
+import TodoSrc from '../demos/todo/index.tsx?raw';
 </script>
 
 ViewModel 是 bizify 的核心。所有业务状态、行为和派生数据都写在一个继承 `ViewModelBase` 的类里。
@@ -94,56 +98,7 @@ valtio 把所有变化转发给视图层,**不需要 spread、不需要 immer �
 
 下面这个购物车演示 `subtotal` / `total` / `isEmpty` 三个 computed —— 改 items 或 discount,所有派生值实时更新:
 
-<ReactDemo :component="Cart">
-
-```tsx
-import { ViewModelBase, useViewModel } from 'bizify';
-
-interface Item { id: string; name: string; price: number; }
-
-type CartState = {
-  items: Item[];
-  discount: number;
-  readonly subtotal: number;
-  readonly total: number;
-  readonly isEmpty: boolean;
-};
-
-class CartVM extends ViewModelBase<CartState> {
-  protected $data(): CartState {
-    return {
-      items: [],
-      discount: 0,
-      get subtotal() {
-        return this.items.reduce((s, i) => s + i.price, 0);
-      },
-      get total() {
-        return this.subtotal * (1 - this.discount);
-      },
-      get isEmpty() {
-        return this.items.length === 0;
-      },
-    };
-  }
-  add(item: Item) { this.data.items.push(item); }
-  setDiscount(d: number) { this.data.discount = d; }
-}
-
-export default function Cart() {
-  const vm = useViewModel(CartVM);
-  const snap = vm.useSnapshot();
-  return (
-    <div>
-      <div>小计:¥{snap.subtotal}</div>
-      <div>折后:¥{snap.total}</div>
-      {snap.isEmpty && <div>购物车是空的</div>}
-      {/* ... 略 */}
-    </div>
-  );
-}
-```
-
-</ReactDemo>
+<ReactDemo :component="Cart" :vm-source="CartVMSrc" :component-source="CartSrc" />
 
 派生数据不需要单独的 API——**直接在 `$data()` 返回值里用 getter**:
 
@@ -317,80 +272,4 @@ class OrderVM extends ViewModelBase<OrderState> {
 
 一个完整的 Todo,涵盖 state、computed、CRUD、过滤切换:
 
-<ReactDemo :component="Todo">
-
-```ts
-import { ViewModelBase } from 'bizify';
-
-interface Todo {
-  id: string;
-  text: string;
-  done: boolean;
-}
-
-type TodoState = {
-  items: Todo[];
-  filter: 'all' | 'active' | 'done';
-  draft: string;
-  // 计算属性
-  readonly visibleItems: Todo[];
-  readonly remaining: number;
-  readonly isEmpty: boolean;
-};
-
-export class TodoVM extends ViewModelBase<TodoState> {
-  protected $data(): TodoState {
-    return {
-      items: [],
-      filter: 'all',
-      draft: '',
-
-      get visibleItems() {
-        if (this.filter === 'active') return this.items.filter((t) => !t.done);
-        if (this.filter === 'done') return this.items.filter((t) => t.done);
-        return this.items;
-      },
-
-      get remaining() {
-        return this.items.filter((t) => !t.done).length;
-      },
-
-      get isEmpty() {
-        return this.items.length === 0;
-      },
-    };
-  }
-
-  // ── 行为
-  setDraft(draft: string) {
-    this.data.draft = draft;
-  }
-
-  setFilter(filter: TodoState['filter']) {
-    this.data.filter = filter;
-  }
-
-  add() {
-    const text = this.data.draft.trim();
-    if (!text) return;
-    this.data.items.push({ id: crypto.randomUUID(), text, done: false });
-    this.data.draft = '';
-  }
-
-  toggle(id: string) {
-    const item = this.data.items.find((t) => t.id === id);
-    if (item) item.done = !item.done;
-  }
-
-  remove(id: string) {
-    const idx = this.data.items.findIndex((t) => t.id === id);
-    if (idx >= 0) this.data.items.splice(idx, 1);
-  }
-
-  clearDone() {
-    this.data.items = this.data.items.filter((t) => !t.done);
-  }
-}
-```
-
-</ReactDemo>
+<ReactDemo :component="Todo" :vm-source="TodoVMSrc" :component-source="TodoSrc" />

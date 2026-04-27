@@ -1,49 +1,14 @@
 # 快速开始
 
 <script setup>
-import Counter from '../demos/Counter.tsx';
+import Counter from '../demos/counter';
+import CounterVMSrc from '../demos/counter/vm.ts?raw';
+import CounterSrc from '../demos/counter/index.tsx?raw';
 </script>
 
-下面是我们要做的东西——一个最朴素的计数器,代码不到 30 行:
+下面是我们要做的东西——一个最朴素的计数器:
 
-<ReactDemo :component="Counter">
-
-```tsx
-import { ViewModelBase, useViewModel } from 'bizify';
-
-class CounterVM extends ViewModelBase<{ count: number }> {
-  protected $data() {
-    return { count: 0 };
-  }
-
-  plus() {
-    this.data.count += 1;
-  }
-
-  minus() {
-    this.data.count -= 1;
-  }
-
-  reset() {
-    this.data.count = 0;
-  }
-}
-
-export default function Counter() {
-  const vm = useViewModel(CounterVM);
-  const snap = vm.useSnapshot();
-  return (
-    <div>
-      <button onClick={vm.minus}>−</button>
-      <span>{snap.count}</span>
-      <button onClick={vm.plus}>+</button>
-      <button onClick={vm.reset}>重置</button>
-    </div>
-  );
-}
-```
-
-</ReactDemo>
+<ReactDemo :component="Counter" :vm-source="CounterVMSrc" :component-source="CounterSrc" />
 
 ## 安装
 

@@ -1,7 +1,9 @@
 # 生命周期
 
 <script setup>
-import Theme from '../demos/Theme.tsx';
+import Theme from '../demos/theme';
+import ThemeVMSrc from '../demos/theme/vm.ts?raw';
+import ThemeSrc from '../demos/theme/index.tsx?raw';
 </script>
 
 ViewModel 有四个生命周期钩子,按需重写即可。所有钩子默认空实现,不需要 `super.xxx()`。
@@ -112,40 +114,7 @@ class WindowSizeVM extends ViewModelBase<{ width: number; height: number }> {
 
 切换主题,刷新页面看 `onInit` 是否从 localStorage 恢复:
 
-<ReactDemo :component="Theme">
-
-```ts
-class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
-  protected $data() { return { mode: 'light' as const }; }
-
-  protected onInit() {
-    // 启动时从 localStorage 恢复
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || saved === 'light') {
-      this.data.mode = saved;
-    }
-  }
-
-  protected onMount() {
-    // 自身变化时自动写回
-    this.unsubPersist = this.$watch('mode', (mode) => {
-      localStorage.setItem('theme', mode);
-    });
-  }
-
-  protected onUnmount() {
-    this.unsubPersist?.();
-  }
-
-  private unsubPersist?: () => void;
-
-  toggle() {
-    this.data.mode = this.data.mode === 'light' ? 'dark' : 'light';
-  }
-}
-```
-
-</ReactDemo>
+<ReactDemo :component="Theme" :vm-source="ThemeVMSrc" :component-source="ThemeSrc" />
 
 ## 实战:浏览器可见性(节能)
 

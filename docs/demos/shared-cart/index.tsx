@@ -1,41 +1,4 @@
-import { ViewModelBase, createViewModelContext } from 'bizify';
-
-interface Item {
-  id: string;
-  name: string;
-  price: number;
-}
-
-type CartState = {
-  items: Item[];
-  readonly subtotal: number;
-  readonly count: number;
-};
-
-class SharedCartVM extends ViewModelBase<CartState> {
-  protected $data(): CartState {
-    return {
-      items: [],
-      get subtotal() {
-        return this.items.reduce((s, i) => s + i.price, 0);
-      },
-      get count() {
-        return this.items.length;
-      },
-    };
-  }
-
-  add(item: Item) {
-    this.data.items.push(item);
-  }
-
-  clear() {
-    this.data.items = [];
-  }
-}
-
-const { Provider: CartProvider, useVM: useCart } =
-  createViewModelContext(SharedCartVM);
+import { CartProvider, useCart, type Item } from './vm';
 
 const CATALOG: Item[] = [
   { id: 'a', name: '苹果', price: 5 },
@@ -50,7 +13,11 @@ const styles = {
     padding: 12,
     background: 'var(--vp-c-bg, #fff)',
   } as const,
-  cardTitle: { fontSize: 12, color: 'var(--vp-c-text-3)', marginBottom: 6 } as const,
+  cardTitle: {
+    fontSize: 12,
+    color: 'var(--vp-c-text-3)',
+    marginBottom: 6,
+  } as const,
   row: { display: 'flex', alignItems: 'center', gap: 8 } as const,
   pill: {
     padding: '4px 10px',
@@ -69,7 +36,6 @@ const styles = {
   },
 };
 
-// 三个独立子组件,共享同一个 CartVM 实例
 function Header() {
   const cart = useCart();
   const snap = cart.useSnapshot();
@@ -102,7 +68,11 @@ function Picker() {
       <div style={styles.cardTitle}>Picker(只调 add,不订阅)</div>
       <div style={styles.row}>
         {CATALOG.map((item) => (
-          <button key={item.id} style={styles.pill} onClick={() => cart.add(item)}>
+          <button
+            key={item.id}
+            style={styles.pill}
+            onClick={() => cart.add(item)}
+          >
             + {item.name} ¥{item.price}
           </button>
         ))}
