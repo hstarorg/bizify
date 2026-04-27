@@ -160,7 +160,7 @@ class CartVM {
 直接在 getter 里访问其他 getter:
 
 ```ts
-$data() {
+protected $data() {
   return {
     items: [] as Item[],
     discount: 0,

@@ -103,15 +103,15 @@ function MyComponent() {
 
 记住:**`vm.useSnapshot()` 返回的 snap 是订阅入口,`vm.data` 是 mutation 入口**。
 
-## 命令式订阅
+## 命令式订阅(VM 内部)
 
-业务逻辑里(非视图)需要订阅状态变化时,用 `$subscribe` 或 `$watch`:
+`$subscribe` 和 `$watch` 都是 **protected**——只能在 VM 类内部调,典型场景是 `onMount` 里订阅自身状态:
 
 ### `$subscribe`:监听任何变化
 
 ```ts
 class TimerVM extends ViewModelBase<{ tick: number }> {
-  $data() { return { tick: 0 }; }
+  protected $data() { return { tick: 0 }; }
 
   protected onMount() {
     // 任何 state 变化都触发 callback
@@ -134,7 +134,7 @@ callback 不带参数。需要当前状态用 `import { snapshot } from 'valtio'
 
 ```ts
 class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
-  $data() { return { mode: 'light' as const }; }
+  protected $data() { return { mode: 'light' as const }; }
 
   protected onMount() {
     this.unsub = this.$watch('mode', (newMode) => {

@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ViewModelBase, VM_MOUNT, VM_UNMOUNT } from '../src/core';
+import { ViewModelBase } from '../src/core';
+// 测试要触发生命周期需要这俩 internal 函数——它们故意不从公开入口暴露,
+// 测试直接从源文件取。
+import { _vmMount, _vmUnmount } from '../src/core/ViewModelBase';
 
 // ─── test helpers ─────────────────────────────────────────────────
-// VM 的 data / $subscribe / $watch / VM_MOUNT / VM_UNMOUNT 都不对外开放,
+// VM 的 data / $subscribe / $watch / 内部 mount/unmount 都不对外开放,
 // 测试要内省直接 cast 拿到。
 type Peek = <T>(vm: ViewModelBase<any>) => T;
 const peek: Peek = (vm) => (vm as any).data;
@@ -149,14 +152,14 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new LifeVM();
 
-    vm[VM_MOUNT]();
-    vm[VM_MOUNT]();
+    _vmMount(vm);
+    _vmMount(vm);
     expect(onMount).toHaveBeenCalledOnce();
 
-    vm[VM_UNMOUNT]();
+    _vmUnmount(vm);
     expect(onUnmount).not.toHaveBeenCalled();
 
-    vm[VM_UNMOUNT]();
+    _vmUnmount(vm);
     expect(onUnmount).toHaveBeenCalledOnce();
   });
 
@@ -188,7 +191,7 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new LifeVM();
     vm.$dispose();
-    vm[VM_MOUNT]();
+    _vmMount(vm);
     expect(onMount).not.toHaveBeenCalled();
   });
 
@@ -268,5 +271,38 @@ describe('core/ViewModelBase', () => {
     // $dispose 是 public,可以解构调用
     const $dispose = vm.$dispose;
     expect(() => $dispose()).not.toThrow();
+  });
+
+  it('VM 实例对外不暴露任何 internal API(反向断言)', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+      myMethod() {}
+    }
+    const vm = new VM();
+
+    // 不应该挂在实例上的内部状态
+    expect((vm as any).mountCount).toBeUndefined();
+    expect((vm as any).disposed).toBeUndefined();
+    expect((vm as any).mount).toBeUndefined();
+    expect((vm as any).unmount).toBeUndefined();
+    expect((vm as any).VM_MOUNT).toBeUndefined();
+    expect((vm as any).VM_UNMOUNT).toBeUndefined();
+    expect((vm as any)._vmMount).toBeUndefined();
+    expect((vm as any)._vmUnmount).toBeUndefined();
+
+    // 实例上没有任何 own symbol 键(以前 Symbol-keyed 方法的痕迹)
+    expect(Object.getOwnPropertySymbols(vm)).toHaveLength(0);
+
+    // 实例 own keys 只该有:data + autoBind 写入的方法名(myMethod 等)
+    const ownKeys = Object.getOwnPropertyNames(vm).sort();
+    // data 必须在,框架内部状态字段一律不在
+    expect(ownKeys).toContain('data');
+    expect(ownKeys).toContain('myMethod');
+    expect(ownKeys).not.toContain('mountCount');
+    expect(ownKeys).not.toContain('disposed');
+    expect(ownKeys).not.toContain('mount');
+    expect(ownKeys).not.toContain('unmount');
   });
 });

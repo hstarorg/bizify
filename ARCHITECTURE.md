@@ -88,11 +88,13 @@ $data(): CartState {
 
 `onDispose` 仅在用户显式 `vm.$dispose()` 时触发,留给容器/注册表/测试 teardown 场景。
 
-### 6. 引用计数 + Symbol 键内部 API
+### 6. 引用计数 + WeakMap 内部 API
 
-`[VM_MOUNT]` / `[VM_UNMOUNT]` 是 Symbol-keyed 方法,内部维护 `mountCount`,只在 `0→1` / `1→0` 时触发 `onMount` / `onUnmount`。
+mount/unmount 闭包不挂在实例上,而是塞在模块级 `WeakMap<vm, { mount, unmount }>` 里。`#mountCount` / `#disposed` 是 JS `#` 私有字段,真正的运行时私有。
 
-**为什么用 Symbol**:从 view 视角的 `vm.` 自动补全里彻底消失,只有 framework 内部(`src/react/lifecycleBinding.ts`)显式 import 这两个 symbol 才能调用。比 `__` 前缀的"君子约定"硬。
+框架对外只暴露两个内部函数:`_vmMount(vm)` / `_vmUnmount(vm)`,它们查 WeakMap 调闭包。这俩函数**故意不从 `bizify/core` 公开导出**——只有框架自己的 `lifecycleBinding.ts` 直接从 `'../core/ViewModelBase'` 源文件 import。
+
+**为什么不用 Symbol-keyed 方法**:`unique symbol` 键的方法在 VS Code 自动补全里仍可见(显示为 `[VM_MOUNT]: () => void`)——视觉污染。WeakMap 方案让实例的 own keys / prototype keys 都不包含任何 internal API,view 端 `vm.` 输完后看到的只剩 `useSnapshot` / `$dispose` / 子类自定义方法。
 
 ## 视图绑定
 
