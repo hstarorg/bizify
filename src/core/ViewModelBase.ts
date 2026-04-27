@@ -5,27 +5,39 @@ import { isDev } from '../internal/dev';
 export type ViewModelState = Record<string, unknown>;
 
 /**
+ * @internal Symbol-keyed lifecycle hooks called by view bindings.
+ * Symbols hide these from the public `vm.` autocomplete surface — they're
+ * accessible only to callers that explicitly import the symbols (the
+ * framework's own React layer).
+ */
+export const VM_MOUNT: unique symbol = Symbol('bizify.vm.mount');
+export const VM_UNMOUNT: unique symbol = Symbol('bizify.vm.unmount');
+
+/**
  * Framework-agnostic ViewModel base class, backed by valtio.
  *
  * - `this.data` is a valtio proxy. Read it directly, mutate it directly:
  *   `this.data.count++` / `this.data.items.push(x)` / `this.data.user.name = 'X'`.
+ *   It is **protected** — only callable inside VM methods, not from views.
+ *   Views read state via `useSnapshot()` (in the React layer).
  * - Computed properties are declared as **getters in `$data()` return**, e.g.
- *   `get total() { return this.items.reduce(...); }`. Both `vm.data.total` and
- *   `useSnapshot(vm.data).total` work and auto-track dependencies.
- * - `$subscribe(cb)` for any-state-change notifications.
- * - `$watch(key, cb)` for single-key change notifications (with prev/next).
+ *   `get total() { return this.items.reduce(...); }`. Both `this.data.total`
+ *   inside the VM and `useSnapshot(vm.data).total` in views auto-track deps.
+ * - `$subscribe(cb)` / `$watch(key, cb)` are **protected** — meant for VM
+ *   internal use (typically inside `onMount`). Expose specific subscriptions
+ *   as public methods if external code needs them.
  *
  * Lifecycle hooks (override as needed):
  *   - `onInit`     fires once when the instance is constructed
  *   - `onMount`    fires when the first view attaches (ref count goes 0 -> 1)
  *   - `onUnmount`  fires when the last view detaches (ref count goes 1 -> 0)
- *   - `onDispose`  fires only when `dispose()` is called explicitly
+ *   - `onDispose`  fires only when `$dispose()` is called explicitly
  *
  * In React 18 StrictMode, `onMount` / `onUnmount` are coalesced to fire
  * exactly once per real mount/unmount via the React layer's lifecycle binding.
  */
 export abstract class ViewModelBase<T extends ViewModelState> {
-  readonly data: T;
+  protected readonly data: T;
 
   private mountCount = 0;
   private disposed = false;
@@ -51,23 +63,26 @@ export abstract class ViewModelBase<T extends ViewModelState> {
 
   /**
    * Subscribe to any state change. Callback receives no args; use
-   * `import { snapshot } from 'valtio'` to capture the current snapshot
-   * if you need it.
+   * `import { snapshot } from 'valtio'` to capture the current snapshot.
+   * Protected — typically called from `onMount`.
    */
-  $subscribe(listener: () => void): () => void {
+  protected $subscribe(listener: () => void): () => void {
     return subscribe(this.data, listener);
   }
 
   /**
    * Subscribe to a single state key. Callback receives the new value.
-   * For deep paths, prefer composing computed getters in `$data` and
-   * watching the computed key.
+   * Protected — typically called from `onMount`.
    */
-  $watch<K extends keyof T>(
+  protected $watch<K extends keyof T>(
     key: K,
     listener: (value: T[K]) => void,
   ): () => void {
-    return subscribeKey(this.data, key as string, listener as (v: unknown) => void);
+    return subscribeKey(
+      this.data,
+      key as string,
+      listener as (v: unknown) => void,
+    );
   }
 
   // ─── lifecycle hooks (subclasses override) ───────────────────────────
@@ -77,22 +92,22 @@ export abstract class ViewModelBase<T extends ViewModelState> {
   protected onUnmount(): void {}
   protected onDispose(): void {}
 
-  // ─── ref counting (called by view bindings, not user code) ───────────
+  // ─── ref counting (Symbol-keyed: callable by view bindings only) ──
 
-  /** @internal Called by view bindings on mount. */
-  __mount(): void {
+  /** @internal */
+  [VM_MOUNT](): void {
     if (this.disposed) return;
     if (this.mountCount === 0) this.onMount();
     this.mountCount++;
   }
 
-  /** @internal Called by view bindings on unmount. */
-  __unmount(): void {
+  /** @internal */
+  [VM_UNMOUNT](): void {
     if (this.disposed) return;
     if (this.mountCount === 0) {
       if (isDev) {
         console.warn(
-          '[bizify] __unmount() called without a matching __mount(). ' +
+          '[bizify] [VM_UNMOUNT] called without a matching mount. ' +
             'This usually indicates a binding bug.',
         );
       }
@@ -123,11 +138,9 @@ export abstract class ViewModelBase<T extends ViewModelState> {
    * (`plus() { ... }`) — both can be passed as handlers without losing
    * `this`.
    *
-   * Skipped:
-   *   - `constructor`
-   *   - getters/setters (e.g. `data` accessor)
-   *   - non-function descriptors
-   *   - properties already defined on the instance (arrow fields shadow)
+   * Symbol-keyed methods (`[VM_MOUNT]` / `[VM_UNMOUNT]`) are skipped
+   * (Object.getOwnPropertyNames returns string keys only). They're called
+   * via `vm[VM_MOUNT]()` syntax with `this` bound to vm naturally.
    */
   private autoBindPrototypeMethods(): void {
     let proto: object | null = Object.getPrototypeOf(this);

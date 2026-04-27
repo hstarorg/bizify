@@ -1,5 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ViewModelBase } from '../src/core';
+import { ViewModelBase, VM_MOUNT, VM_UNMOUNT } from '../src/core';
+
+// ─── test helpers ─────────────────────────────────────────────────
+// VM 的 data / $subscribe / $watch / VM_MOUNT / VM_UNMOUNT 都不对外开放,
+// 测试要内省直接 cast 拿到。
+type Peek = <T>(vm: ViewModelBase<any>) => T;
+const peek: Peek = (vm) => (vm as any).data;
+const sub = (vm: ViewModelBase<any>, cb: () => void): (() => void) =>
+  (vm as any).$subscribe(cb);
+const watch = (
+  vm: ViewModelBase<any>,
+  key: string,
+  cb: (v: unknown) => void,
+): (() => void) => (vm as any).$watch(key, cb);
 
 class CounterVM extends ViewModelBase<{ count: number; label: string }> {
   protected $data() {
@@ -22,8 +35,8 @@ class CounterVM extends ViewModelBase<{ count: number; label: string }> {
 describe('core/ViewModelBase', () => {
   it('initializes data from $data()', () => {
     const vm = new CounterVM();
-    expect(vm.data.count).toBe(0);
-    expect(vm.data.label).toBe('init');
+    expect(peek<{ count: number; label: string }>(vm).count).toBe(0);
+    expect(peek<{ count: number; label: string }>(vm).label).toBe('init');
   });
 
   it('merges constructor initial over $data()', () => {
@@ -33,17 +46,16 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new WithInitVM({ b: 99 });
-    expect(vm.data.a).toBe(1);
-    expect(vm.data.b).toBe(99);
+    expect(peek<{ a: number; b: number }>(vm).a).toBe(1);
+    expect(peek<{ a: number; b: number }>(vm).b).toBe(99);
   });
 
   it('direct mutation triggers subscriptions (async batched)', async () => {
     const vm = new CounterVM();
     const listener = vi.fn();
-    const unsub = vm.$subscribe(listener);
+    const unsub = sub(vm, listener);
 
     vm.plus();
-    // valtio's subscribe is async — it batches notifications to the next microtask
     await Promise.resolve();
     expect(listener).toHaveBeenCalled();
 
@@ -57,22 +69,20 @@ describe('core/ViewModelBase', () => {
   it('prototype methods can mutate this.data', () => {
     const vm = new CounterVM();
     vm.bumpBy(5);
-    expect(vm.data.count).toBe(5);
+    expect(peek<{ count: number }>(vm).count).toBe(5);
     vm.setLabel('done');
-    expect(vm.data.label).toBe('done');
+    expect(peek<{ label: string }>(vm).label).toBe('done');
   });
 
   it('$watch fires on specific key change with new value', async () => {
     const vm = new CounterVM();
     const listener = vi.fn();
-    const unsub = vm.$watch('count', listener);
+    const unsub = watch(vm, 'count', listener);
 
     vm.plus();
-    // valtio's subscribeKey is async (microtask) — wait for it
     await Promise.resolve();
     expect(listener).toHaveBeenCalledWith(1);
 
-    // changing label should not trigger count watcher
     listener.mockClear();
     vm.setLabel('foo');
     await Promise.resolve();
@@ -101,11 +111,11 @@ describe('core/ViewModelBase', () => {
     }
 
     const vm = new CartVM();
-    expect(vm.data.total).toBe(0);
+    expect(peek<CartState>(vm).total).toBe(0);
     vm.add(5);
-    expect(vm.data.total).toBe(5);
+    expect(peek<CartState>(vm).total).toBe(5);
     vm.add(10);
-    expect(vm.data.total).toBe(15);
+    expect(peek<CartState>(vm).total).toBe(15);
   });
 
   it('lifecycle: onInit fires on construction', () => {
@@ -123,7 +133,7 @@ describe('core/ViewModelBase', () => {
     expect(onInit).toHaveBeenCalledOnce();
   });
 
-  it('lifecycle: onMount fires on first __mount, onUnmount on last __unmount', () => {
+  it('lifecycle: onMount fires on first mount, onUnmount on last unmount', () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     class LifeVM extends ViewModelBase<{ x: number }> {
@@ -139,18 +149,18 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new LifeVM();
 
-    vm.__mount();
-    vm.__mount();
+    vm[VM_MOUNT]();
+    vm[VM_MOUNT]();
     expect(onMount).toHaveBeenCalledOnce();
 
-    vm.__unmount();
+    vm[VM_UNMOUNT]();
     expect(onUnmount).not.toHaveBeenCalled();
 
-    vm.__unmount();
+    vm[VM_UNMOUNT]();
     expect(onUnmount).toHaveBeenCalledOnce();
   });
 
-  it('dispose() fires onDispose once and is idempotent', () => {
+  it('$dispose() fires onDispose once and is idempotent', () => {
     const onDispose = vi.fn();
     class LifeVM extends ViewModelBase<{ x: number }> {
       protected $data() {
@@ -166,7 +176,7 @@ describe('core/ViewModelBase', () => {
     expect(onDispose).toHaveBeenCalledOnce();
   });
 
-  it('disposed VM ignores __mount / __unmount', () => {
+  it('disposed VM ignores subsequent mount', () => {
     const onMount = vi.fn();
     class LifeVM extends ViewModelBase<{ x: number }> {
       protected $data() {
@@ -178,7 +188,7 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new LifeVM();
     vm.$dispose();
-    vm.__mount();
+    vm[VM_MOUNT]();
     expect(onMount).not.toHaveBeenCalled();
   });
 
@@ -199,10 +209,10 @@ describe('core/ViewModelBase', () => {
     const { plus, plusBy } = vm;
 
     plus();
-    expect(vm.data.count).toBe(1);
+    expect(peek<{ count: number }>(vm).count).toBe(1);
 
     plusBy(5);
-    expect(vm.data.count).toBe(6);
+    expect(peek<{ count: number }>(vm).count).toBe(6);
   });
 
   it('subclass override of a prototype method is preserved by auto-bind', () => {
@@ -223,7 +233,7 @@ describe('core/ViewModelBase', () => {
     const vm = new B();
     const fn = vm.greet;
     fn();
-    expect(vm.data.tag).toBe('B');
+    expect(peek<{ tag: string }>(vm).tag).toBe('B');
   });
 
   it('arrow class fields still take precedence over prototype methods', () => {
@@ -242,26 +252,21 @@ describe('core/ViewModelBase', () => {
     const vm = new VM();
     const { greet, hello } = vm;
     greet();
-    expect(vm.data.via).toBe('arrow');
+    expect(peek<{ via: string }>(vm).via).toBe('arrow');
     hello();
-    expect(vm.data.via).toBe('proto');
+    expect(peek<{ via: string }>(vm).via).toBe('proto');
   });
 
-  it('inherited base-class methods are auto-bound', () => {
+  it('public methods are auto-bound and destructure-safe', () => {
     class VM extends ViewModelBase<{ x: number }> {
       protected $data() {
         return { x: 0 };
       }
     }
     const vm = new VM();
+
+    // $dispose 是 public,可以解构调用
     const $dispose = vm.$dispose;
-    const subscribe = vm.$subscribe;
-
-    const listener = vi.fn();
-    const unsub = subscribe(listener);
-    expect(typeof unsub).toBe('function');
-    unsub();
-
     expect(() => $dispose()).not.toThrow();
   });
 });
