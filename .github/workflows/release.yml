@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version (e.g. 1.0.0 or 1.0.0-beta.1)'
+        required: true
+      npm_tag:
+        description: 'npm dist-tag'
+        required: true
+        default: 'latest'
+        type: choice
+        options:
+          - latest
+          - next
+          - beta
+
+concurrency:
+  group: release
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: '0'
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 完整 history,changelog 需要
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+
+      - name: Bump version
+        run: pnpm version "$VERSION" --no-git-tag-version
+
+      - name: Build
+        run: pnpm build
+
+      - name: Generate changelog
+        run: pnpm dlx conventional-changelog-cli@latest -p angular -i CHANGELOG.md -s -r 1
+
+      - name: Commit and tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add package.json CHANGELOG.md
+          git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks --access public --tag "${{ inputs.npm_tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push commit and tag
+        run: git push --follow-tags
