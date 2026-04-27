@@ -18,7 +18,7 @@ describe('createViewModelContext', () => {
 
     function Header() {
       const vm = useVM();
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       return <div data-testid="header">{snap.items.length}</div>;
     }
 
@@ -26,7 +26,7 @@ describe('createViewModelContext', () => {
     function Body() {
       const vm = useVM();
       vmRef = vm;
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       return <div data-testid="body">{snap.items.join(',')}</div>;
     }
 
@@ -51,7 +51,7 @@ describe('createViewModelContext', () => {
     const { Provider, useVM } = createViewModelContext(CartVM);
 
     function View() {
-      const snap = useVM().use();
+      const snap = useVM().useSnapshot();
       return <div data-testid="v">{snap.items.join(',')}</div>;
     }
 
@@ -77,7 +77,7 @@ describe('createViewModelContext', () => {
     consoleError.mockRestore();
   });
 
-  it('Provider lifecycle: onMount once, onUnmount once, no auto-dispose', async () => {
+  it('Provider lifecycle: onMount once, onUnmount once, no auto-$dispose', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     const onDispose = vi.fn();
@@ -116,7 +116,7 @@ describe('createViewModelContext', () => {
     unmount();
     await Promise.resolve();
     expect(onUnmount).toHaveBeenCalledOnce();
-    // Provider does not auto-call dispose().
+    // Provider does not auto-call $dispose().
     expect(onDispose).not.toHaveBeenCalled();
   });
 
@@ -165,7 +165,7 @@ describe('createViewModelContext', () => {
     const { Provider, useVM } = createViewModelContext(CartVM);
 
     function View() {
-      const snap = useVM().use();
+      const snap = useVM().useSnapshot();
       return <div data-testid="v">{snap.items.join(',')}</div>;
     }
 

@@ -21,7 +21,7 @@ class CounterVM extends ViewModelBase<{ count: number }> {
 ```tsx
 function Counter() {
   const vm = useViewModel(CounterVM);
-  const snap = vm.use();
+  const snap = vm.useSnapshot();
   return <button onClick={vm.plus}>{snap.count}</button>;
 }
 ```
@@ -48,7 +48,7 @@ function Counter() {
 
 Bizify 不重新发明轮子:
 
-- **状态管理**:底层就是 zustand,可以直接和 zustand 中间件互通
+- **响应式底层**:基于 [valtio](https://valtio.dev),Proxy 自动追踪 + 直接 mutate,深度嵌套也能响应
 - **服务端状态**:推荐配合 react-query / SWR,VM 只管本地状态
 - **表单**:可以接 react-hook-form,VM 持有提交后的业务状态
 - **路由**:不耦合,任意路由库适用

@@ -22,7 +22,7 @@ describe('useViewModel', () => {
     function View() {
       const vm = useViewModel(CounterVM);
       vmRef = vm;
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       return <div data-testid="count">{snap.count}</div>;
     }
 
@@ -42,7 +42,7 @@ describe('useViewModel', () => {
     function View() {
       const vm = useViewModel(CounterVM);
       vmRef = vm;
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       const count = snap.count; // only access count → only subscribe to count
       renderSpy();
       return <div data-testid="count">{count}</div>;
@@ -88,7 +88,7 @@ describe('useViewModel', () => {
     function View() {
       const vm = useViewModel(CartVM);
       vmRef = vm;
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       return <div data-testid="total">{snap.total}</div>;
     }
 
@@ -114,7 +114,7 @@ describe('useViewModel', () => {
 
     function View() {
       const vm = useViewModel(ProtoVM);
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       return (
         <button data-testid="btn" onClick={vm.increment}>
           {snap.count}
@@ -219,7 +219,7 @@ describe('useViewModel', () => {
     function View() {
       const vm = useViewModel(UserVM);
       vmRef = vm;
-      const snap = vm.use();
+      const snap = vm.useSnapshot();
       return <div data-testid="name">{snap.user.profile.name}</div>;
     }
 

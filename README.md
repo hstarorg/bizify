@@ -38,7 +38,7 @@ import { CounterVM } from './counter-vm';
 
 export function Counter() {
   const vm = useViewModel(CounterVM);
-  const snap = vm.use();
+  const snap = vm.useSnapshot();
 
   return (
     <div>
@@ -54,7 +54,7 @@ export function Counter() {
 
 - **MVVM 架构** — VM 持有状态与行为,View 只关心渲染
 - **直接 mutate** — 基于 valtio,`this.data.x = y` 自动响应,深度嵌套也行
-- **自动追踪订阅** — `vm.use()` 读什么订什么,无需 selector / shallow
+- **自动追踪订阅** — `vm.useSnapshot()` 读什么订什么,无需 selector / shallow
 - **计算属性** — 在 `$data` 里写 getter,自动追踪依赖
 - **生命周期** — `onInit` / `onMount` / `onUnmount`,**StrictMode 隐形**(单触发,Vue 风格)
 - **SSR 友好** — Provider 模式,跨请求隔离,初始数据可注入

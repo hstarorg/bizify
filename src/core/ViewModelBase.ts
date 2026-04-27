@@ -110,7 +110,7 @@ export abstract class ViewModelBase<T extends ViewModelState> {
    * they remain safe under React StrictMode. Call this explicitly when
    * you need a one-shot teardown (tests, container/registry patterns).
    */
-  dispose(): void {
+  $dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.onDispose();

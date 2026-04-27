@@ -127,7 +127,7 @@ class CartVM extends ViewModelBase<CartState> {
 // 视图:自动追踪 items / discount
 function CartFooter() {
   const vm = useViewModel(CartVM);
-  const snap = vm.use();
+  const snap = vm.useSnapshot();
   return <div>¥{snap.total} {snap.isEmpty && '(空)'}</div>;
 }
 ```

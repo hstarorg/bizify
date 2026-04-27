@@ -44,13 +44,13 @@ function CartPage() {
 ```tsx
 function CartHeader() {
   const cart = useCart();
-  const snap = cart.use();
+  const snap = cart.useSnapshot();
   return <span>购物车 ({snap.items.length})</span>;
 }
 
 function CartItems() {
   const cart = useCart();
-  const snap = cart.use();
+  const snap = cart.useSnapshot();
   return (
     <ul>{snap.items.map((i) => <li key={i.id}>{i.name}</li>)}</ul>
   );
@@ -69,9 +69,9 @@ Provider 管理 VM 实例的生命周期:
 子组件订阅/取消订阅不影响 VM 生命周期。
 
 ::: warning onDispose 不会自动触发
-为了在 React 18 StrictMode 下保持安全,Provider **不会**自动调用 `vm.dispose()`。
+为了在 React 18 StrictMode 下保持安全,Provider **不会**自动调用 `vm.$dispose()`。
 所有跟随视图生命周期的清理(定时器、事件监听等)放在 `onUnmount` 里。
-`onDispose` 仅在你显式调用 `vm.dispose()` 时触发,适合容器/注册表等手动管理实例的场景。
+`onDispose` 仅在你显式调用 `vm.$dispose()` 时触发,适合容器/注册表等手动管理实例的场景。
 :::
 
 ## 注入初始数据

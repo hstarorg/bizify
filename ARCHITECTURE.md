@@ -15,7 +15,7 @@ bizify/
 │   │   ├── ViewModelBase.ts   类:state proxy + 生命周期 + autoBind
 │   │   └── index.ts
 │   ├── react/                 React 绑定层
-│   │   ├── ViewModelBase.ts   继承 core,加 use() hook
+│   │   ├── ViewModelBase.ts   继承 core,加 useSnapshot() hook
 │   │   ├── useViewModel.ts    组件局部 VM hook
 │   │   ├── createViewModelContext.ts  Provider + useVM
 │   │   ├── lifecycleBinding.ts        微任务级生命周期协调器
@@ -32,8 +32,8 @@ bizify/
 
 | 层 | 文件 | 职责 |
 |---|---|---|
-| Core | `src/core/ViewModelBase.ts` | valtio proxy 状态、生命周期钩子、`$subscribe` / `$watch`、`autoBindPrototypeMethods`、`dispose` |
-| React | `src/react/ViewModelBase.ts` | 加一个 `use()`(调 `useSnapshot`,cast 回 `T` 脱 readonly) |
+| Core | `src/core/ViewModelBase.ts` | valtio proxy 状态、生命周期钩子、`$subscribe` / `$watch`、`autoBindPrototypeMethods`、`$dispose` |
+| React | `src/react/ViewModelBase.ts` | 加一个 `useSnapshot()`(内部调 valtio `useSnapshot`,cast 回 `T` 脱 readonly) |
 
 子类继承 React 版本(默认入口)或 Core 版本(`bizify/core`,框架无关场景)。
 
@@ -42,8 +42,8 @@ bizify/
 ### 1. 状态 mutable,snapshot readonly
 
 - `vm.data.x = y` 直接 mutate,valtio 自动派发
-- `vm.use()` 返回 snapshot——运行时 readonly(写入抛错),TS 类型脱回 `T`(便于和子组件 props 组合)
-- 约定:**修改走 `vm.data`,读取走 `vm.use()`**
+- `vm.useSnapshot()` 返回 snapshot——运行时 readonly(写入抛错),TS 类型脱回 `T`(便于和子组件 props 组合)
+- 约定:**修改走 `vm.data`,读取走 `vm.useSnapshot()`**
 
 ### 2. 计算属性 = `$data()` 的 getter
 
@@ -68,7 +68,7 @@ $data(): CartState {
 
 `autoBindPrototypeMethods`:沿原型链(到 `Object.prototype` 之前)把每个非 constructor、非 getter/setter、非 own 的方法 `bind(this)` 后写为不可枚举 own property。
 
-效果:箭头字段和原型方法都能直接当事件处理器传,`const { plus } = vm; plus()` 不丢 `this`。基类方法(`dispose` / `$subscribe`)同样被绑定。
+效果:箭头字段和原型方法都能直接当事件处理器传,`const { plus } = vm; plus()` 不丢 `this`。基类方法(`$dispose` / `$subscribe`)同样被绑定。
 
 ### 4. 生命周期 StrictMode 隐形
 
@@ -80,11 +80,11 @@ $data(): CartState {
 
 结果:**StrictMode 双跑、并发模式弃用提交、Suspense 重挂载,全部合并为单次 `onMount`/`onUnmount`**——业务代码不需要写 idempotent。
 
-### 5. `dispose()` 不自动触发
+### 5. `$dispose()` 不自动触发
 
-`useViewModel` 和 `Provider` 的 effect cleanup 只调 `__unmount`,**不调 `dispose`**。理由是 StrictMode 安全:cleanup → mount 循环不能销毁实例。
+`useViewModel` 和 `Provider` 的 effect cleanup 只调 `__unmount`,**不调 `$dispose`**。理由是 StrictMode 安全:cleanup → mount 循环不能销毁实例。
 
-`onDispose` 仅在用户显式 `vm.dispose()` 时触发,留给容器/注册表/测试 teardown 场景。
+`onDispose` 仅在用户显式 `vm.$dispose()` 时触发,留给容器/注册表/测试 teardown 场景。
 
 ### 6. 引用计数
 
@@ -112,7 +112,7 @@ $data(): CartState {
 - `test/setup.ts` 加 jest-dom 匹配器 + 自动 cleanup
 - 显式 import(`import { describe } from 'vitest'`),不用 globals
 - 三个文件:
-  - `test/core.test.ts` — 类语义(state、$subscribe、$watch、生命周期、dispose、autoBind、computed via getter)
+  - `test/core.test.ts` — 类语义(state、`$subscribe`、`$watch`、生命周期、`$dispose`、autoBind、computed via getter)
   - `test/useViewModel.test.tsx` — React 集成(挂载、自动追踪、嵌套 mutation、StrictMode、原型方法事件处理器)
   - `test/createViewModelContext.test.tsx` — Provider 共享、initial 注入、initial 只读一次、StrictMode、生命周期
 

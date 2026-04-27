@@ -2,14 +2,14 @@
 
 bizify 用 valtio 的自动追踪做订阅——**你在 render 里读了什么字段,组件就只订阅那些字段**。无需 selector,无需 shallow,无需手动声明依赖。
 
-## 基础用法:`vm.use()`
+## 基础用法:`vm.useSnapshot()`
 
-`vm.use()` 返回一份 valtio snapshot——表面看是普通对象,实际是个**追踪 Proxy**:
+`vm.useSnapshot()` 返回一份 valtio snapshot——表面看是普通对象,实际是个**追踪 Proxy**:
 
 ```tsx
 function OrderHeader() {
   const vm = useViewModel(OrderVM);
-  const snap = vm.use();   // 追踪 Proxy
+  const snap = vm.useSnapshot();   // 追踪 Proxy
   // 读 snap.filter → 这个组件只订阅 filter
   // 不读 snap.items → items 变化不重渲染
   return (
@@ -19,7 +19,7 @@ function OrderHeader() {
 
 function OrderTable() {
   const vm = useViewModel(OrderVM);
-  const snap = vm.use();
+  const snap = vm.useSnapshot();
   return (
     <ul>
       {snap.items.map((i) => <li key={i.id}>{i.name}</li>)}
@@ -35,7 +35,7 @@ function OrderTable() {
 ```tsx
 function UserBadge() {
   const vm = useViewModel(UserVM);
-  const snap = vm.use();
+  const snap = vm.useSnapshot();
   return <span>{snap.user.profile.name}</span>;
   // 订阅:user.profile.name
   // 修改 user.profile.email → 不重渲染
@@ -74,7 +74,7 @@ class CartVM extends ViewModelBase<CartState> {
 ```tsx
 function CartTotal() {
   const vm = useViewModel(CartVM);
-  const { total } = vm.use();
+  const { total } = vm.useSnapshot();
   return <div>¥{total}</div>;
   // 订阅:total → 实际依赖 items 和 discount,任一变化都重渲染
 }
@@ -89,7 +89,7 @@ function MyComponent() {
   const vm = useViewModel(OrderVM);
 
   // ✅ 视图里:走 use() 的 snapshot
-  const snap = vm.use();
+  const snap = vm.useSnapshot();
   return <div>{snap.items.length}</div>;
 
   // ✅ 调用方法不需要订阅,直接 vm.xxx
@@ -101,7 +101,7 @@ function MyComponent() {
 }
 ```
 
-记住:**`vm.use()` 返回的 snap 是订阅入口,`vm.data` 是 mutation 入口**。
+记住:**`vm.useSnapshot()` 返回的 snap 是订阅入口,`vm.data` 是 mutation 入口**。
 
 ## 命令式订阅
 
@@ -165,5 +165,5 @@ class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
 ## 性能小贴士
 
 1. **拆组件比挑订阅更有效**:一个组件订阅 6+ 个字段意味着组件太大。拆成多个子组件,每个只订自己关心的几个。
-2. **不要把 snap 存到 ref / state 里**:存了就脱离追踪上下文,后续读取不会触发重订阅。每次 render 重新 `vm.use()`。
+2. **不要把 snap 存到 ref / state 里**:存了就脱离追踪上下文,后续读取不会触发重订阅。每次 render 重新 `vm.useSnapshot()`。
 3. **派生数据走 `$data` 的 getter**:不要在 render 里算 `snap.items.reduce(...)`,放到 computed 里,**计算结果会缓存**,且依赖追踪精确。

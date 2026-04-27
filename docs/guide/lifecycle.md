@@ -9,7 +9,7 @@ ViewModel 有四个生命周期钩子,按需重写即可。所有钩子默认空
 | `onInit` | 实例构造时(同步) | 同步初始化、读 localStorage |
 | `onMount` | 第一个 View 挂载时 | 启动副作用、定时器、订阅、首次拉数据 |
 | `onUnmount` | 最后一个 View 卸载时 | 清理副作用、定时器 |
-| `onDispose` | **显式**调用 `vm.dispose()` 时 | 一次性销毁(测试、容器/注册表) |
+| `onDispose` | **显式**调用 `vm.$dispose()` 时 | 一次性销毁(测试、容器/注册表) |
 
 ::: tip
 `onMount` / `onUnmount` 走**引用计数**——多个组件共享同一个 VM 时,只在第一个挂载/最后一个卸载时触发一次。
@@ -39,7 +39,7 @@ new VM()
 [最后一个组件真正卸载]
   └─ (微任务后) onUnmount()  ← StrictMode/Suspense 弃用提交也被合并
 
-[显式 vm.dispose()]
+[显式 vm.$dispose()]
   └─ onDispose()             ← 仅手动调用时触发
 ```
 
@@ -50,8 +50,8 @@ new VM()
 :::
 
 ::: warning onDispose 不再自动触发
-之前版本里 `useViewModel` / Provider unmount 时会自动调 `dispose()`。1.0 起**不再这样**——
-StrictMode 的双跑机制会让自动 dispose 错误地销毁实例。**所有视图相关的清理都放在 `onUnmount`**,
+之前版本里 `useViewModel` / Provider unmount 时会自动调 `$dispose()`。1.0 起**不再这样**——
+StrictMode 的双跑机制会让自动 `$dispose` 错误地销毁实例。**所有视图相关的清理都放在 `onUnmount`**,
 `onDispose` 留给显式销毁场景(测试 teardown、容器统一释放等)。
 :::
 
@@ -172,16 +172,16 @@ class StatsVM extends ViewModelBase<{ data: Stats | null }> {
 }
 ```
 
-## 手动调用 `dispose()`
+## 手动调用 `$dispose()`
 
-如果你在不通过 `useViewModel` / Provider 的场景下创建了 VM(测试、Node 脚本),记得手动 `dispose()`:
+如果你在不通过 `useViewModel` / Provider 的场景下创建了 VM(测试、Node 脚本),记得手动 `$dispose()`:
 
 ```ts
 const vm = new MyVM();
 vm.__mount();    // 模拟挂载,触发 onMount
 // ...用 vm
 vm.__unmount();  // 模拟卸载,触发 onUnmount
-vm.dispose();    // 触发 onDispose
+vm.$dispose();    // 触发 onDispose
 ```
 
-`dispose()` 是**幂等**的,多次调用安全。
+`$dispose()` 是**幂等**的,多次调用安全。

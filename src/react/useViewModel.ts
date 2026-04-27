@@ -17,8 +17,8 @@ import {
  * Subclasses can write `onMount` / `onUnmount` like Vue's hooks — they
  * fire exactly once per real page entry / exit.
  *
- * `dispose()` is *not* auto-called on unmount. Put view-tied cleanup in
- * `onUnmount`. Call `dispose()` explicitly only when you need a one-shot
+ * `$dispose()` is *not* auto-called on unmount. Put view-tied cleanup in
+ * `onUnmount`. Call `$dispose()` explicitly only when you need a one-shot
  * teardown (tests, container/registry patterns).
  *
  * Use this for component-local state. For shared / SSR-friendly cases,

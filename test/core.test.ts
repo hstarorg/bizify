@@ -161,8 +161,8 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new LifeVM();
-    vm.dispose();
-    vm.dispose();
+    vm.$dispose();
+    vm.$dispose();
     expect(onDispose).toHaveBeenCalledOnce();
   });
 
@@ -177,7 +177,7 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new LifeVM();
-    vm.dispose();
+    vm.$dispose();
     vm.__mount();
     expect(onMount).not.toHaveBeenCalled();
   });
@@ -254,7 +254,7 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new VM();
-    const dispose = vm.dispose;
+    const $dispose = vm.$dispose;
     const subscribe = vm.$subscribe;
 
     const listener = vi.fn();
@@ -262,6 +262,6 @@ describe('core/ViewModelBase', () => {
     expect(typeof unsub).toBe('function');
     unsub();
 
-    expect(() => dispose()).not.toThrow();
+    expect(() => $dispose()).not.toThrow();
   });
 });

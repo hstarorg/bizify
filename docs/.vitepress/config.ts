@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   title: 'Bizify',
-  description: 'Lightweight React MVVM framework backed by zustand',
+  description: 'Lightweight React MVVM framework backed by valtio',
   base: '/bizify/',
   cleanUrls: true,
   lastUpdated: true,

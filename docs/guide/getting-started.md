@@ -62,7 +62,7 @@ import { CounterVM } from './counter-vm';
 
 export function Counter() {
   const vm = useViewModel(CounterVM);
-  const snap = vm.use();   // 自动追踪读到的字段
+  const snap = vm.useSnapshot();   // 自动追踪读到的字段
 
   return (
     <div>
@@ -80,7 +80,7 @@ export function Counter() {
 `useViewModel` 自动负责:
 - 组件首次渲染时 `new CounterVM()`
 - 订阅 VM 的状态变化,自动重渲染
-- 组件卸载时 `dispose()`
+- 组件卸载时 `$dispose()`
 
 ## 单测 ViewModel
 

@@ -47,8 +47,8 @@ export interface ViewModelContext<
  * **StrictMode is invisible.** `onMount` / `onUnmount` fire exactly once
  * per real Provider mount / unmount, not twice in dev mode.
  *
- * **Note**: `dispose()` is *not* auto-called on Provider unmount. Put
- * cleanup in `onUnmount`. Call `dispose()` explicitly only when you need
+ * **Note**: `$dispose()` is *not* auto-called on Provider unmount. Put
+ * cleanup in `onUnmount`. Call `$dispose()` explicitly only when you need
  * a one-shot teardown.
  */
 export function createViewModelContext<
