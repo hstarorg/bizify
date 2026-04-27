@@ -185,6 +185,37 @@ describe('useViewModel', () => {
     expect(onUnmount).toHaveBeenCalledTimes(2);
   });
 
+  it('prototype methods can be passed directly as event handlers', () => {
+    class ProtoVM extends ViewModelBase<{ count: number }> {
+      protected $data() {
+        return { count: 0 };
+      }
+      // Note: NOT an arrow function — plain prototype method
+      increment() {
+        this.$set({ count: this.data.count + 1 });
+      }
+    }
+
+    function View() {
+      const vm = useViewModel(ProtoVM);
+      const count = vm.use((s) => s.count);
+      // Pass the raw prototype method; auto-bind makes `this` correct
+      return (
+        <button data-testid="btn" onClick={vm.increment}>
+          {count}
+        </button>
+      );
+    }
+
+    render(<View />);
+    expect(screen.getByTestId('btn')).toHaveTextContent('0');
+
+    act(() => {
+      screen.getByTestId('btn').click();
+    });
+    expect(screen.getByTestId('btn')).toHaveTextContent('1');
+  });
+
   it('useDerived with shallow equality skips re-render when computed slice is shallow-equal', () => {
     class CartVM extends ViewModelBase<{
       items: { id: number; name: string }[];

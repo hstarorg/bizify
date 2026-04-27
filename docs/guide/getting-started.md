@@ -39,8 +39,22 @@ export class CounterVM extends ViewModelBase<CounterState> {
 }
 ```
 
-::: tip
-方法用**箭头函数类字段**(`plus = () => ...`),`this` 自动绑定,可以直接当事件处理器传给 JSX。
+::: tip 两种方法风格都行
+ViewModel 在构造时会自动把原型方法绑定到实例,所以下面两种写法**都可以**直接当事件处理器传给 JSX:
+
+```ts
+class CounterVM extends ViewModelBase<CounterState> {
+  // 风格 A:箭头函数类字段
+  plus = () => this.$set({ count: this.data.count + 1 });
+
+  // 风格 B:普通原型方法(this 自动绑定)
+  minus() {
+    this.$set({ count: this.data.count - 1 });
+  }
+}
+```
+
+随你喜好选。原型方法在 IDE 调试栈、继承覆盖、TypeScript 重载等场景下表现更自然;箭头函数字段更显式。
 :::
 
 ### 2. 在组件中绑定

@@ -53,7 +53,7 @@ Two view-binding APIs in `src/react/`:
 Key invariants:
 
 - **`$set` is shallow merge**. Mutating nested state requires returning a new reference (`$set((s) => ({ items: [...s.items, x] }))`).
-- **Method-as-arrow-class-field** is the convention (`plus = () => ...`) so `this` binds correctly when methods are passed as event handlers. All examples and tests use this pattern.
+- **Method `this` is auto-bound at construction**. The base constructor walks the prototype chain (excluding `Object.prototype`) and re-defines each plain method as a non-enumerable bound own property. So both arrow class fields (`plus = () => ...`) and regular prototype methods (`plus() { ... }`) can be passed as handlers without losing `this`. Arrow fields shadow same-named prototype methods (own-property check skips). Auto-bind also covers inherited base-class methods like `dispose` and `$subscribe`.
 - **Lifecycle hooks have empty defaults** — subclasses don't need `super.xxx()`.
 - **`onMount` / `onUnmount` use ref counting** — multiple subscribers share one VM, hooks fire on first mount / last unmount only. Under React 18 StrictMode they may fire twice; subclass implementations must be idempotent (same contract as `useEffect`).
 - **`dispose()` is idempotent**, sets a `disposed` flag that ignores subsequent `__mount`/`__unmount` calls. View bindings do NOT call it automatically.

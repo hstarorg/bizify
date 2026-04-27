@@ -112,6 +112,88 @@ describe('core/ViewModelBase', () => {
     expect(onDispose).toHaveBeenCalledOnce();
   });
 
+  it('prototype methods are auto-bound to the instance', () => {
+    class ProtoVM extends ViewModelBase<{ count: number }> {
+      protected $data() {
+        return { count: 0 };
+      }
+      plus() {
+        this.$set({ count: this.data.count + 1 });
+      }
+      // Mixed: prototype method calling another prototype method
+      plusBy(n: number) {
+        this.$set({ count: this.data.count + n });
+      }
+    }
+
+    const vm = new ProtoVM();
+    const { plus, plusBy } = vm; // destructure — would lose `this` without auto-bind
+
+    plus();
+    expect(vm['data'].count).toBe(1);
+
+    plusBy(5);
+    expect(vm['data'].count).toBe(6);
+  });
+
+  it('subclass override of a prototype method is preserved by auto-bind', () => {
+    class A extends ViewModelBase<{ tag: string }> {
+      protected $data() {
+        return { tag: '' };
+      }
+      greet() {
+        this.$set({ tag: 'A' });
+      }
+    }
+    class B extends A {
+      greet() {
+        this.$set({ tag: 'B' });
+      }
+    }
+
+    const vm = new B();
+    const fn = vm.greet;
+    fn();
+    expect(vm['data'].tag).toBe('B');
+  });
+
+  it('arrow class fields still take precedence over prototype methods', () => {
+    class VM extends ViewModelBase<{ via: string }> {
+      protected $data() {
+        return { via: '' };
+      }
+      greet = () => this.$set({ via: 'arrow' });
+      hello() {
+        this.$set({ via: 'proto' });
+      }
+    }
+
+    const vm = new VM();
+    const { greet, hello } = vm;
+    greet();
+    expect(vm['data'].via).toBe('arrow');
+    hello();
+    expect(vm['data'].via).toBe('proto');
+  });
+
+  it('inherited base-class methods (e.g. dispose, $subscribe) are also bound', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+    }
+    const vm = new VM();
+    const dispose = vm.dispose;
+    const subscribe = vm.$subscribe;
+
+    const listener = vi.fn();
+    const unsub = subscribe(listener);
+    expect(typeof unsub).toBe('function');
+    unsub();
+
+    expect(() => dispose()).not.toThrow();
+  });
+
   it('disposed VM ignores __mount / __unmount', () => {
     const onMount = vi.fn();
     class LifeVM extends ViewModelBase<{ x: number }> {

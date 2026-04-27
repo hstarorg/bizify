@@ -30,7 +30,41 @@ export abstract class ViewModelBase<T extends ViewModelState> {
       ...this.$data(),
       ...(initial as Partial<T> | undefined),
     }));
+    this.autoBindPrototypeMethods();
     this.onInit();
+  }
+
+  /**
+   * Walk the prototype chain and bind every method to `this` as a
+   * non-enumerable own property. Lets users define methods either as
+   * arrow class fields (`plus = () => ...`) or as plain prototype methods
+   * (`plus() { ... }`) — both can be passed as handlers without losing
+   * `this`.
+   *
+   * Skipped:
+   *   - `constructor`
+   *   - getters/setters (e.g. `data` accessor)
+   *   - non-function descriptors
+   *   - properties already defined on the instance (arrow fields shadow)
+   */
+  private autoBindPrototypeMethods(): void {
+    let proto: object | null = Object.getPrototypeOf(this);
+    while (proto && proto !== Object.prototype) {
+      for (const name of Object.getOwnPropertyNames(proto)) {
+        if (name === 'constructor') continue;
+        if (Object.prototype.hasOwnProperty.call(this, name)) continue;
+        const desc = Object.getOwnPropertyDescriptor(proto, name);
+        if (!desc || desc.get || desc.set) continue;
+        if (typeof desc.value !== 'function') continue;
+        Object.defineProperty(this, name, {
+          value: (desc.value as (...args: unknown[]) => unknown).bind(this),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+      proto = Object.getPrototypeOf(proto);
+    }
   }
 
   /** Declare the initial state. Called once by the constructor. */

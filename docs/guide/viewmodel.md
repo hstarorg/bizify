@@ -59,6 +59,33 @@ class OrderVM extends ViewModelBase<OrderState> {
 `$set` 永远是**浅合并**——只有传入的字段会被更新,其他字段保持不变。不需要手动展开 `...this.data`。
 :::
 
+## 方法风格:箭头字段 vs 原型方法
+
+ViewModel 构造时会自动把原型链上的方法 `bind(this)` 写到实例上,所以两种写法都能直接当事件处理器传:
+
+```ts
+class OrderVM extends ViewModelBase<OrderState> {
+  // 风格 A:箭头函数类字段
+  setFilter = (filter: string) => this.$set({ filter });
+
+  // 风格 B:原型方法(自动绑定)
+  toggleSort() {
+    this.$set((s) => ({ sort: s.sort === 'price' ? 'date' : 'price' }));
+  }
+}
+
+// 都能这样用,this 不会丢
+<button onClick={vm.setFilter('xxx')} />
+<button onClick={vm.toggleSort} />
+```
+
+| 风格 | 优势 |
+|---|---|
+| 箭头字段 | 写法显式;TypeScript 类型推导更直接 |
+| 原型方法 | 调试栈更清晰;`super.xxx()` / 继承覆盖更顺;占内存少(原型共享) |
+
+混用也没问题——按方法表达力选即可。
+
 ## 异步方法
 
 异步方法就是普通的 async 函数,内部该 `$set` 就 `$set`:
