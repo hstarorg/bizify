@@ -111,7 +111,7 @@ describe('useViewModel', () => {
     expect(renderSpy.mock.calls.length).toBe(initialRenders);
   });
 
-  it('lifecycle: onMount on render, onUnmount on unmount, onDispose NOT auto-called', () => {
+  it('lifecycle: onMount fires once after render, onUnmount fires once after unmount', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     const onDispose = vi.fn();
@@ -137,17 +137,19 @@ describe('useViewModel', () => {
     }
 
     const { unmount } = render(<View />);
+    // Lifecycle is reconciled on the next microtask.
+    await Promise.resolve();
     expect(onMount).toHaveBeenCalledOnce();
     expect(onUnmount).not.toHaveBeenCalled();
 
     unmount();
+    await Promise.resolve();
     expect(onUnmount).toHaveBeenCalledOnce();
-    // onDispose is intentionally not auto-called by useViewModel — keeps the
-    // binding safe under React 18 StrictMode.
+    // onDispose is intentionally not auto-called by useViewModel.
     expect(onDispose).not.toHaveBeenCalled();
   });
 
-  it('StrictMode: onMount fires after each remount cycle', () => {
+  it('StrictMode: onMount and onUnmount each fire exactly once (Vue-like)', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
 
@@ -174,15 +176,16 @@ describe('useViewModel', () => {
       </StrictMode>,
     );
 
-    // Under StrictMode, useEffect runs twice in dev: mount → cleanup → mount.
-    // Both onMount calls must fire (i.e. the second mount is not swallowed
-    // by a stale `disposed` flag).
-    expect(onMount).toHaveBeenCalledTimes(2);
-    expect(onUnmount).toHaveBeenCalledTimes(1);
+    // React fires effect → cleanup → effect synchronously in StrictMode.
+    // Microtask reconciliation collapses this into a single onMount.
+    await Promise.resolve();
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(onUnmount).toHaveBeenCalledTimes(0);
 
     unmount();
-    expect(onMount).toHaveBeenCalledTimes(2);
-    expect(onUnmount).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
   });
 
   it('prototype methods can be passed directly as event handlers', () => {

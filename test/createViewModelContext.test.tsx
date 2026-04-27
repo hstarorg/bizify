@@ -75,7 +75,7 @@ describe('createViewModelContext', () => {
     consoleError.mockRestore();
   });
 
-  it('Provider lifecycle: onMount on mount, onUnmount on unmount, no auto-dispose', () => {
+  it('Provider lifecycle: onMount once, onUnmount once, no auto-dispose', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     const onDispose = vi.fn();
@@ -107,16 +107,18 @@ describe('createViewModelContext', () => {
         <View />
       </Provider>,
     );
+    await Promise.resolve();
     expect(onMount).toHaveBeenCalledOnce();
     expect(onUnmount).not.toHaveBeenCalled();
 
     unmount();
+    await Promise.resolve();
     expect(onUnmount).toHaveBeenCalledOnce();
-    // Provider does not auto-call dispose() — StrictMode safety.
+    // Provider does not auto-call dispose().
     expect(onDispose).not.toHaveBeenCalled();
   });
 
-  it('StrictMode: Provider lifecycle remains correct under double-effect', () => {
+  it('StrictMode: Provider lifecycle fires exactly once each (Vue-like)', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
 
@@ -147,12 +149,14 @@ describe('createViewModelContext', () => {
       </StrictMode>,
     );
 
-    // Same as useViewModel: StrictMode triggers two mount cycles.
-    expect(onMount).toHaveBeenCalledTimes(2);
-    expect(onUnmount).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(onUnmount).toHaveBeenCalledTimes(0);
 
     unmount();
-    expect(onUnmount).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(onUnmount).toHaveBeenCalledTimes(1);
   });
 
   it('Provider initial prop is read once; later changes do not rebuild VM', () => {

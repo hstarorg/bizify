@@ -15,8 +15,10 @@ ViewModel 有四个生命周期钩子,按需重写即可。所有钩子默认空
 `onMount` / `onUnmount` 走**引用计数**——多个组件共享同一个 VM 时,只在第一个挂载/最后一个卸载时触发一次。
 :::
 
-::: warning React 18 StrictMode
-StrictMode 会故意 **mount → unmount → mount** 跑一遍来检测副作用纯度,所以你的 `onMount` / `onUnmount` 在 dev 模式下可能成对触发两次。**保持它们幂等**(和 `useEffect` 的契约一样)。
+::: tip StrictMode 在 bizify 里是隐形的
+React 18 dev 模式下 `useEffect` 会被故意 **mount → cleanup → mount** 跑一遍,但 bizify 用微任务级延迟协调把这层"漏水"补上了——**`onMount` / `onUnmount` 永远只在真实进入/离开页面时各触发一次**,语义和 Vue 的 `onMounted` / `onUnmounted` 完全一致。
+
+你不需要为 StrictMode 写 idempotent,也不用担心 `fetchUser` 双发——按 Vue 的直觉写就行。
 :::
 
 ## 触发时序
@@ -25,8 +27,8 @@ StrictMode 会故意 **mount → unmount → mount** 跑一遍来检测副作用
 new VM()
   └─ onInit()                ← 立即同步触发
 
-[Provider 或 useViewModel 挂载]
-  └─ onMount()               ← 首次挂载触发(ref count 0 → 1)
+[Provider 或 useViewModel 真正挂载]
+  └─ (微任务后) onMount()    ← StrictMode 双跑被合并
 
 [更多组件订阅同一 VM]
   └─ (不再触发 onMount)      ← ref count 1 → 2 → 3...
@@ -34,12 +36,18 @@ new VM()
 [逐个组件卸载]
   └─ (不触发 onUnmount)      ← ref count 3 → 2 → 1
 
-[最后一个组件卸载]
-  └─ onUnmount()             ← ref count 1 → 0
+[最后一个组件真正卸载]
+  └─ (微任务后) onUnmount()  ← StrictMode/Suspense 弃用提交也被合并
 
 [显式 vm.dispose()]
   └─ onDispose()             ← 仅手动调用时触发
 ```
+
+::: tip 微任务延迟意味着什么
+`onMount` 和 `onUnmount` 不在 effect 同步阶段触发,而是延后一个微任务(`queueMicrotask`)。
+对业务代码**完全无感知**——网络请求、定时器、事件监听都还没开始,推迟一个微任务再启动毫无影响。
+但写测试时,`render(...)` 之后要 `await Promise.resolve()` 才能断言 `onMount` 已经触发。
+:::
 
 ::: warning onDispose 不再自动触发
 之前版本里 `useViewModel` / Provider unmount 时会自动调 `dispose()`。1.0 起**不再这样**——

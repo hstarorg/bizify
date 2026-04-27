@@ -3,11 +3,16 @@ import {
   createElement,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import type { ViewModelBase } from './ViewModelBase';
 import type { ViewModelState } from '../core/ViewModelBase';
+import {
+  createLifecycleBinding,
+  type LifecycleBinding,
+} from './lifecycleBinding';
 
 export interface ViewModelProviderProps<T extends ViewModelState> {
   /**
@@ -39,9 +44,12 @@ export interface ViewModelContext<
  *   - SSR (each request constructs its own instance via the Provider)
  *   - app-wide singletons (mount the Provider at the app root)
  *
- * **Note**: `dispose()` is *not* auto-called on Provider unmount, to stay
- * safe under React 18 StrictMode. Put cleanup in `onUnmount`. Call
- * `dispose()` explicitly only when you need a one-shot teardown.
+ * **StrictMode is invisible.** `onMount` / `onUnmount` fire exactly once
+ * per real Provider mount / unmount, not twice in dev mode.
+ *
+ * **Note**: `dispose()` is *not* auto-called on Provider unmount. Put
+ * cleanup in `onUnmount`. Call `dispose()` explicitly only when you need
+ * a one-shot teardown.
  */
 export function createViewModelContext<
   T extends ViewModelState,
@@ -51,11 +59,16 @@ export function createViewModelContext<
 
   function Provider({ initial, children }: ViewModelProviderProps<T>) {
     const [vm] = useState(() => new Ctor(initial));
+    const bindingRef = useRef<LifecycleBinding | null>(null);
+    if (bindingRef.current === null) {
+      bindingRef.current = createLifecycleBinding(vm);
+    }
 
     useEffect(() => {
-      vm.__mount();
+      const binding = bindingRef.current!;
+      binding.mount();
       return () => {
-        vm.__unmount();
+        binding.unmount();
       };
     }, [vm]);
 

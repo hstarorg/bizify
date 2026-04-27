@@ -45,8 +45,8 @@ Two layers:
 
 Two view-binding APIs in `src/react/`:
 
-- **`useViewModel(VM)`** — creates a new instance via `useState(() => new Ctor())`, runs `__mount` on first effect, `__unmount` on unmount. For component-local state.
-- **`createViewModelContext(VM)`** — returns `{ Provider, useVM }`. Provider creates one instance for its subtree (lifetime tied to Provider mount/unmount). Supports `initial` prop for SSR data injection (read once on first render). For shared state and SSR.
+- **`useViewModel(VM)`** — creates a new instance via `useState(() => new Ctor())`. Lifecycle calls go through a microtask-deferred reconciliation binding (see `src/react/lifecycleBinding.ts`) so `onMount` / `onUnmount` each fire **exactly once per logical mount**, even in React 18 StrictMode (which double-invokes effects in dev) or under discarded concurrent commits. For component-local state.
+- **`createViewModelContext(VM)`** — returns `{ Provider, useVM }`. Provider creates one instance for its subtree (lifetime tied to Provider mount/unmount), uses the same lifecycle binding so StrictMode is invisible. Supports `initial` prop for SSR data injection (read once on first render). For shared state and SSR.
 
 **Important — `dispose()` is NOT auto-called by either binding.** This keeps both bindings safe under React 18 StrictMode (which double-invokes effects in dev). Put view-tied cleanup in `onUnmount`. `onDispose` only fires when the user explicitly calls `vm.dispose()` (manual teardown, container/registry patterns, tests).
 
@@ -55,7 +55,7 @@ Key invariants:
 - **`$set` is shallow merge**. Mutating nested state requires returning a new reference (`$set((s) => ({ items: [...s.items, x] }))`).
 - **Method `this` is auto-bound at construction**. The base constructor walks the prototype chain (excluding `Object.prototype`) and re-defines each plain method as a non-enumerable bound own property. So both arrow class fields (`plus = () => ...`) and regular prototype methods (`plus() { ... }`) can be passed as handlers without losing `this`. Arrow fields shadow same-named prototype methods (own-property check skips). Auto-bind also covers inherited base-class methods like `dispose` and `$subscribe`.
 - **Lifecycle hooks have empty defaults** — subclasses don't need `super.xxx()`.
-- **`onMount` / `onUnmount` use ref counting** — multiple subscribers share one VM, hooks fire on first mount / last unmount only. Under React 18 StrictMode they may fire twice; subclass implementations must be idempotent (same contract as `useEffect`).
+- **`onMount` / `onUnmount` are coalesced** — they fire exactly once per real mount/unmount. The `lifecycleBinding` queues mount/unmount intent on a microtask and reconciles to the final desired state, so StrictMode's double-invoke and discarded concurrent commits collapse to a single lifecycle call. Subclass implementations don't need to be idempotent for StrictMode (but should still be reasonable for true unmount-then-remount via key change). Ref counting on the VM still exists for potential multi-binding scenarios but is rarely exercised in practice.
 - **`dispose()` is idempotent**, sets a `disposed` flag that ignores subsequent `__mount`/`__unmount` calls. View bindings do NOT call it automatically.
 
 ## Build pipeline
