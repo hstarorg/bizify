@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/hstarorg/bizify/compare/v1.0.1...v1.0.2) (2026-04-28)
+
+
+### Features
+
+* **core:** enhance $watch with getter form, oldValue, and immediate ([dbd5491](https://github.com/hstarorg/bizify/commit/dbd54910b8628657bd88f1e461d1595398ddda05))
+* **vm:** add effect scope, $onCleanup, $disposed, auto-dispose on unmount ([89dfc3c](https://github.com/hstarorg/bizify/commit/89dfc3ca01bd2aad817ee30e22432c311ca260e9))
 ## [1.0.1](https://github.com/hstarorg/bizify/compare/v1.0.0...v1.0.1) (2026-04-27)
 # [1.0.0](https://github.com/hstarorg/bizify/compare/v0.2.3...v1.0.0) (2026-04-27)
 
