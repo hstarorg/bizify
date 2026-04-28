@@ -94,6 +94,34 @@ describe('core/ViewModelBase', () => {
     unsub();
   });
 
+  it('initial does not overwrite computed getters from $data', () => {
+    type State = { items: number[]; readonly total: number };
+    class CartVM extends ViewModelBase<State> {
+      protected $data(): State {
+        return {
+          items: [],
+          get total() {
+            return this.items.reduce((s, n) => s + n, 0);
+          },
+        };
+      }
+      add(n: number) {
+        this.data.items.push(n);
+      }
+    }
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Forcibly pass `total` as initial — should be skipped, getter preserved.
+    const vm = new CartVM({ items: [1, 2], total: 999 } as Partial<State>);
+    expect(peek<State>(vm).total).toBe(3);
+    vm.add(4);
+    expect(peek<State>(vm).total).toBe(7);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('initial.total ignored'),
+    );
+    warn.mockRestore();
+  });
+
   it('computed getter declared in $data is reactive on the proxy', () => {
     type CartState = {
       items: number[];
@@ -177,6 +205,91 @@ describe('core/ViewModelBase', () => {
     vm.$dispose();
     vm.$dispose();
     expect(onDispose).toHaveBeenCalledOnce();
+  });
+
+  it('$dispose() while mounted fires onUnmount before onDispose', () => {
+    const calls: string[] = [];
+    class LifeVM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+      protected onUnmount() {
+        calls.push('unmount');
+      }
+      protected onDispose() {
+        calls.push('dispose');
+      }
+    }
+    const vm = new LifeVM();
+    _vmMount(vm);
+    vm.$dispose();
+    expect(calls).toEqual(['unmount', 'dispose']);
+  });
+
+  it('$disposed reflects lifecycle state', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+    }
+    const vm = new VM();
+    expect(vm.$disposed).toBe(false);
+    vm.$dispose();
+    expect(vm.$disposed).toBe(true);
+  });
+
+  it('$subscribe / $watch are auto-drained at $dispose', async () => {
+    const subListener = vi.fn();
+    const watchListener = vi.fn();
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+      bump() {
+        this.data.x += 1;
+      }
+    }
+    const vm = new VM();
+    sub(vm, subListener);
+    watch(vm, 'x', watchListener);
+
+    vm.bump();
+    await Promise.resolve();
+    expect(subListener).toHaveBeenCalled();
+    expect(watchListener).toHaveBeenCalled();
+
+    vm.$dispose();
+    subListener.mockClear();
+    watchListener.mockClear();
+
+    vm.bump();
+    await Promise.resolve();
+    expect(subListener).not.toHaveBeenCalled();
+    expect(watchListener).not.toHaveBeenCalled();
+  });
+
+  it('$onCleanup remover is idempotent and drains at $dispose', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+    }
+    const onCleanup = (vm: VM, fn: () => void): (() => void) =>
+      (vm as any).$onCleanup(fn);
+
+    const vm = new VM();
+
+    const cleanupA = vi.fn();
+    const remove = onCleanup(vm, cleanupA);
+    remove();
+    expect(cleanupA).toHaveBeenCalledOnce();
+    remove();
+    expect(cleanupA).toHaveBeenCalledOnce();
+
+    const cleanupB = vi.fn();
+    onCleanup(vm, cleanupB);
+    vm.$dispose();
+    expect(cleanupB).toHaveBeenCalledOnce();
   });
 
   it('disposed VM ignores subsequent mount', () => {
