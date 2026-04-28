@@ -77,20 +77,86 @@ describe('core/ViewModelBase', () => {
     expect(peek<{ label: string }>(vm).label).toBe('done');
   });
 
-  it('$watch fires on specific key change with new value', async () => {
+  it('$watch by key fires with (newVal, oldVal)', async () => {
     const vm = new CounterVM();
     const listener = vi.fn();
     const unsub = watch(vm, 'count', listener);
 
     vm.plus();
     await Promise.resolve();
-    expect(listener).toHaveBeenCalledWith(1);
+    expect(listener).toHaveBeenCalledWith(1, 0);
+
+    vm.plus();
+    await Promise.resolve();
+    expect(listener).toHaveBeenLastCalledWith(2, 1);
 
     listener.mockClear();
     vm.setLabel('foo');
     await Promise.resolve();
     expect(listener).not.toHaveBeenCalled();
 
+    unsub();
+  });
+
+  it('$watch by getter fires on nested change with (newVal, oldVal)', async () => {
+    type S = { user: { name: string }; misc: number };
+    class VM extends ViewModelBase<S> {
+      protected $data(): S {
+        return { user: { name: 'Tom' }, misc: 0 };
+      }
+      rename(name: string) {
+        this.data.user.name = name;
+      }
+      bumpMisc() {
+        this.data.misc += 1;
+      }
+    }
+    const vm = new VM();
+    const listener = vi.fn();
+    const unsub = (vm as any).$watch(
+      () => (vm as any).data.user.name,
+      listener,
+    );
+
+    vm.rename('Jerry');
+    await Promise.resolve();
+    expect(listener).toHaveBeenCalledWith('Jerry', 'Tom');
+
+    // Object.is filter: unrelated mutation does not fire
+    listener.mockClear();
+    vm.bumpMisc();
+    await Promise.resolve();
+    expect(listener).not.toHaveBeenCalled();
+
+    unsub();
+  });
+
+  it('$watch immediate fires once with (current, undefined) at register', async () => {
+    const vm = new CounterVM();
+    const listener = vi.fn();
+    const unsub = (vm as any).$watch('count', listener, { immediate: true });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(0, undefined);
+
+    vm.plus();
+    await Promise.resolve();
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenLastCalledWith(1, 0);
+
+    unsub();
+  });
+
+  it('$watch immediate works with getter form too', () => {
+    const vm = new CounterVM();
+    const listener = vi.fn();
+    const unsub = (vm as any).$watch(
+      () => (vm as any).data.count + 100,
+      listener,
+      { immediate: true },
+    );
+
+    expect(listener).toHaveBeenCalledWith(100, undefined);
     unsub();
   });
 
@@ -373,17 +439,22 @@ describe('core/ViewModelBase', () => {
     expect(peek<{ via: string }>(vm).via).toBe('proto');
   });
 
-  it('public methods are auto-bound and destructure-safe', () => {
+  it('user-defined methods are auto-bound and destructure-safe', () => {
     class VM extends ViewModelBase<{ x: number }> {
       protected $data() {
         return { x: 0 };
       }
+      bump() {
+        this.data.x += 1;
+      }
     }
     const vm = new VM();
 
-    // $dispose 是 public,可以解构调用
-    const $dispose = vm.$dispose;
-    expect(() => $dispose()).not.toThrow();
+    // user methods bind so destructured calls keep `this`. Framework
+    // `$`-prefixed methods are NOT bound — call them via `vm.method()`.
+    const { bump } = vm;
+    bump();
+    expect(peek<{ x: number }>(vm).x).toBe(1);
   });
 
   it('VM 实例对外不暴露任何 internal API(反向断言)', () => {

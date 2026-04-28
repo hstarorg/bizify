@@ -2,7 +2,10 @@ import { proxy, subscribe } from 'valtio/vanilla';
 import { subscribeKey } from 'valtio/utils';
 import { isDev } from '../internal/dev';
 
-export type ViewModelState = Record<string, unknown>;
+export type ViewModelState = object;
+
+/** Extract the state type from a ViewModelBase subclass. Internal helper. */
+export type StateOf<VM> = VM extends ViewModelBase<infer T> ? T : never;
 
 // Per-instance lifecycle state lives in a module-level WeakMap so the VM
 // instance has zero internal own properties — `vm.` autocomplete stays clean.
@@ -16,34 +19,64 @@ interface VMState {
 
 const states = new WeakMap<ViewModelBase<any>, VMState>();
 
-// onMount/onUnmount are protected; framework boundary needs to call them
-// via structural cast so renames still type-check.
-type LifecycleHooks = { onMount(): void; onUnmount(): void };
-
-const drainCleanups = (list: Array<() => void>): void => {
-  while (list.length) {
-    const fn = list.pop()!;
-    try {
-      fn();
-    } catch (err) {
-      console.error('[bizify] cleanup error:', err);
-    }
+const safeRun = (fn: () => void): void => {
+  try {
+    fn();
+  } catch (err) {
+    console.error('[bizify] cleanup error:', err);
   }
 };
 
-// Module-level so it stays off the prototype (autoBind would bind it onto
-// every instance and pollute `vm.` autocomplete).
+// Framework-only structural casts. One helper per protected surface — keeps
+// each cast self-contained and renames type-check against the shape.
+const invokeOnMount = (vm: ViewModelBase<any>): void => {
+  (vm as unknown as { onMount(): void }).onMount();
+};
+const invokeOnUnmount = (vm: ViewModelBase<any>): void => {
+  (vm as unknown as { onUnmount(): void }).onUnmount();
+};
+const callData = <T extends ViewModelState>(vm: ViewModelBase<T>): T =>
+  (vm as unknown as { $data(): T }).$data();
+
+// Build the proxy seed from $data() + initial. defineProperties preserves
+// accessor descriptors so computed getters survive proxy wrapping; spread
+// or assign would freeze them to one-shot snapshots.
+const buildSeed = <T extends ViewModelState>(
+  vm: ViewModelBase<T>,
+  initial?: Partial<T>,
+): Record<string, unknown> => {
+  const seed: Record<string, unknown> = {};
+  Object.defineProperties(
+    seed,
+    Object.getOwnPropertyDescriptors(callData(vm)),
+  );
+  if (!initial) return seed;
+  for (const key of Object.keys(initial)) {
+    // Skip accessor keys (computed getters from $data) — Object.assign
+    // throws on getter-only keys; warn-and-skip is friendlier.
+    const desc = Object.getOwnPropertyDescriptor(seed, key);
+    if (desc && (desc.get || desc.set)) {
+      if (isDev) {
+        console.warn(
+          `[bizify] initial.${key} ignored: it's a computed property in $data().`,
+        );
+      }
+      continue;
+    }
+    seed[key] = (initial as Record<string, unknown>)[key];
+  }
+  return seed;
+};
+
+// Module-level so it stays off the prototype (autoBind would otherwise
+// bind it onto every instance and pollute `vm.` autocomplete).
 const trackCleanup = (
   vm: ViewModelBase<any>,
   fn: () => void,
 ): (() => void) => {
   const s = states.get(vm);
   if (!s || s.disposed) {
-    try {
-      fn();
-    } catch (err) {
-      console.error('[bizify] cleanup error:', err);
-    }
+    safeRun(fn);
     return () => {};
   }
   s.cleanups.push(fn);
@@ -53,12 +86,12 @@ const trackCleanup = (
     removed = true;
     const idx = s.cleanups.indexOf(fn);
     if (idx >= 0) s.cleanups.splice(idx, 1);
-    try {
-      fn();
-    } catch (err) {
-      console.error('[bizify] cleanup error:', err);
-    }
+    safeRun(fn);
   };
+};
+
+const drainCleanups = (list: Array<() => void>): void => {
+  while (list.length) safeRun(list.pop()!);
 };
 
 /** @internal Framework-only. */
@@ -66,7 +99,7 @@ export function _vmMount(vm: ViewModelBase<any>): void {
   const s = states.get(vm)!;
   if (s.disposed) return;
   s.mountCount++;
-  if (s.mountCount === 1) (vm as unknown as LifecycleHooks).onMount();
+  if (s.mountCount === 1) invokeOnMount(vm);
 }
 
 /** @internal Framework-only. */
@@ -74,7 +107,7 @@ export function _vmUnmount(vm: ViewModelBase<any>): void {
   const s = states.get(vm)!;
   if (s.disposed || s.mountCount === 0) return;
   s.mountCount--;
-  if (s.mountCount === 0) (vm as unknown as LifecycleHooks).onUnmount();
+  if (s.mountCount === 0) invokeOnUnmount(vm);
 }
 
 /**
@@ -95,32 +128,7 @@ export abstract class ViewModelBase<T extends ViewModelState> {
   protected readonly data: T;
 
   constructor(initial?: Partial<T>) {
-    // defineProperties preserves accessor descriptors from $data() so
-    // computed getters survive the proxy wrapping (spread/assign would
-    // freeze them to one-shot snapshots).
-    const seed: Record<string, unknown> = {};
-    Object.defineProperties(
-      seed,
-      Object.getOwnPropertyDescriptors(this.$data()),
-    );
-    if (initial) {
-      for (const key of Object.keys(initial)) {
-        // Skip accessor keys (computed getters from $data) — Object.assign
-        // would silently overwrite them with a data descriptor.
-        const desc = Object.getOwnPropertyDescriptor(seed, key);
-        if (desc && (desc.get || desc.set)) {
-          if (isDev) {
-            console.warn(
-              `[bizify] initial.${key} ignored: it's a computed property in $data().`,
-            );
-          }
-          continue;
-        }
-        seed[key] = (initial as Record<string, unknown>)[key];
-      }
-    }
-    this.data = proxy(seed) as T;
-
+    this.data = proxy(buildSeed(this, initial)) as T;
     states.set(this, { mountCount: 0, disposed: false, cleanups: [] });
     this.autoBindMethods();
     this.onInit();
@@ -132,18 +140,51 @@ export abstract class ViewModelBase<T extends ViewModelState> {
     return trackCleanup(this, subscribe(this.data, listener));
   }
 
+  /**
+   * Watch a source for changes. Source can be either a top-level state
+   * key or a getter expression that reads from `this.data` (supports
+   * nested paths and computed expressions). Listener receives
+   * `(newValue, oldValue)`; when `immediate: true`, the first call's
+   * `oldValue` is `undefined`.
+   *
+   * Equality is `Object.is` — getters that return new arrays/objects on
+   * every call will fire on every state change.
+   */
   protected $watch<K extends keyof T>(
-    key: K,
-    listener: (value: T[K]) => void,
+    source: K,
+    listener: (value: T[K], oldValue: T[K] | undefined) => void,
+    options?: { immediate?: boolean },
+  ): () => void;
+  protected $watch<V>(
+    source: () => V,
+    listener: (value: V, oldValue: V | undefined) => void,
+    options?: { immediate?: boolean },
+  ): () => void;
+  protected $watch(
+    source: keyof T | (() => unknown),
+    listener: (value: unknown, oldValue: unknown) => void,
+    options?: { immediate?: boolean },
   ): () => void {
-    return trackCleanup(
-      this,
-      subscribeKey(
-        this.data,
-        key as string,
-        listener as (v: unknown) => void,
-      ),
-    );
+    const isGetter = typeof source === 'function';
+    const read = (): unknown =>
+      isGetter ? source() : (this.data as Record<string, unknown>)[source as string];
+
+    let prev = read();
+    const fire = (): void => {
+      const next = read();
+      if (Object.is(next, prev)) return;
+      const old = prev;
+      prev = next;
+      listener(next, old);
+    };
+
+    const unsub = isGetter
+      ? subscribe(this.data, fire)
+      : subscribeKey(this.data, source, fire);
+
+    if (options?.immediate) listener(prev, undefined);
+
+    return trackCleanup(this, unsub);
   }
 
   /**
@@ -161,7 +202,7 @@ export abstract class ViewModelBase<T extends ViewModelState> {
 
   /** True after `$dispose()` has been called. */
   get $disposed(): boolean {
-    return states.get(this)?.disposed ?? true;
+    return states.get(this)!.disposed;
   }
 
   /**
@@ -174,7 +215,7 @@ export abstract class ViewModelBase<T extends ViewModelState> {
     if (!s || s.disposed) return;
     if (s.mountCount > 0) {
       s.mountCount = 0;
-      (this as unknown as LifecycleHooks).onUnmount();
+      this.onUnmount();
     }
     s.disposed = true;
     this.onDispose();
@@ -182,14 +223,17 @@ export abstract class ViewModelBase<T extends ViewModelState> {
   }
 
   /**
-   * Bind every prototype method to `this` as a non-enumerable own
-   * property, so methods survive destructuring / event-handler passing.
+   * Bind user-defined prototype methods to `this` as non-enumerable own
+   * properties, so methods survive destructuring / event-handler passing.
+   * Framework-prefixed (`$*`) methods are skipped — they're called as
+   * `vm.method()`, never destructured.
    */
   private autoBindMethods(): void {
     let proto: object | null = Object.getPrototypeOf(this);
     while (proto && proto !== Object.prototype) {
       for (const name of Object.getOwnPropertyNames(proto)) {
         if (name === 'constructor') continue;
+        if (name.startsWith('$')) continue;
         if (Object.prototype.hasOwnProperty.call(this, name)) continue;
         const desc = Object.getOwnPropertyDescriptor(proto, name)!;
         if (typeof desc.value !== 'function') continue;

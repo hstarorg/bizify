@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { ViewModelBase } from './ViewModelBase';
-import type { ViewModelState } from '../core/ViewModelBase';
 import { createLifecycleBinding } from './lifecycleBinding';
 
 /**
@@ -8,12 +7,13 @@ import { createLifecycleBinding } from './lifecycleBinding';
  * `onMount` / `onUnmount` fire exactly once per real mount/unmount.
  * For shared / SSR cases, prefer `createViewModelContext`.
  */
-export function useViewModel<
-  T extends ViewModelState,
-  VM extends ViewModelBase<T>,
->(Ctor: new () => VM): VM {
-  const [vm] = useState(() => new Ctor());
-  const [binding] = useState(() => createLifecycleBinding(vm));
+export function useViewModel<VM extends ViewModelBase<any>>(
+  Ctor: new () => VM,
+): VM {
+  const [{ vm, binding }] = useState(() => {
+    const vm = new Ctor();
+    return { vm, binding: createLifecycleBinding(vm) };
+  });
 
   useEffect(() => {
     binding.mount();

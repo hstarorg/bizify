@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { ViewModelBase } from './ViewModelBase';
-import type { ViewModelState } from '../core/ViewModelBase';
+import type { StateOf, ViewModelState } from '../core/ViewModelBase';
 import { createLifecycleBinding } from './lifecycleBinding';
 
 export interface ViewModelProviderProps<T extends ViewModelState> {
@@ -28,15 +28,19 @@ export interface ViewModelContext<
  * Provider + useVM hook for sharing a VM across a subtree (also the
  * recommended SSR pattern — each request gets its own Provider/VM).
  */
-export function createViewModelContext<
-  T extends ViewModelState,
-  VM extends ViewModelBase<T>,
->(Ctor: new (initial?: Partial<T>) => VM): ViewModelContext<T, VM> {
+export function createViewModelContext<VM extends ViewModelBase<any>>(
+  Ctor: new (initial?: Partial<StateOf<VM>>) => VM,
+): ViewModelContext<StateOf<VM>, VM> {
   const Ctx = createContext<VM | null>(null);
 
-  function Provider({ initial, children }: ViewModelProviderProps<T>) {
-    const [vm] = useState(() => new Ctor(initial));
-    const [binding] = useState(() => createLifecycleBinding(vm));
+  function Provider({
+    initial,
+    children,
+  }: ViewModelProviderProps<StateOf<VM>>) {
+    const [{ vm, binding }] = useState(() => {
+      const vm = new Ctor(initial);
+      return { vm, binding: createLifecycleBinding(vm) };
+    });
 
     useEffect(() => {
       binding.mount();
