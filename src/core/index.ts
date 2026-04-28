@@ -1,1 +1,6 @@
-export { ViewModelBase, type ViewModelState } from './ViewModelBase';
+export {
+  ViewModelBase,
+  dispose,
+  isDisposed,
+  type ViewModelState,
+} from './ViewModelBase';

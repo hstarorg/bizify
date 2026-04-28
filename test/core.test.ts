@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ViewModelBase } from '../src/core';
+import { ViewModelBase, dispose, isDisposed } from '../src/core';
 // 测试要触发生命周期需要这俩 internal 函数——它们故意不从公开入口暴露,
 // 测试直接从源文件取。
 import { _vmMount, _vmUnmount } from '../src/core/ViewModelBase';
@@ -13,9 +13,12 @@ const sub = (vm: ViewModelBase<any>, cb: () => void): (() => void) =>
   (vm as any).$subscribe(cb);
 const watch = (
   vm: ViewModelBase<any>,
-  key: string,
-  cb: (v: unknown) => void,
-): (() => void) => (vm as any).$watch(key, cb);
+  source: string | (() => unknown),
+  cb: (value: unknown, oldValue: unknown) => void,
+  options?: { immediate?: boolean },
+): (() => void) => (vm as any).$watch(source, cb, options);
+const onCleanup = (vm: ViewModelBase<any>, fn: () => void): (() => void) =>
+  (vm as any).$onCleanup(fn);
 
 class CounterVM extends ViewModelBase<{ count: number; label: string }> {
   protected $data() {
@@ -113,10 +116,7 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new VM();
     const listener = vi.fn();
-    const unsub = (vm as any).$watch(
-      () => (vm as any).data.user.name,
-      listener,
-    );
+    const unsub = watch(vm, () => (vm as any).data.user.name, listener);
 
     vm.rename('Jerry');
     await Promise.resolve();
@@ -134,7 +134,7 @@ describe('core/ViewModelBase', () => {
   it('$watch immediate fires once with (current, undefined) at register', async () => {
     const vm = new CounterVM();
     const listener = vi.fn();
-    const unsub = (vm as any).$watch('count', listener, { immediate: true });
+    const unsub = watch(vm, 'count', listener, { immediate: true });
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledWith(0, undefined);
@@ -150,7 +150,8 @@ describe('core/ViewModelBase', () => {
   it('$watch immediate works with getter form too', () => {
     const vm = new CounterVM();
     const listener = vi.fn();
-    const unsub = (vm as any).$watch(
+    const unsub = watch(
+      vm,
       () => (vm as any).data.count + 100,
       listener,
       { immediate: true },
@@ -158,6 +159,19 @@ describe('core/ViewModelBase', () => {
 
     expect(listener).toHaveBeenCalledWith(100, undefined);
     unsub();
+  });
+
+  it('$watch returned unsubscribe is idempotent', async () => {
+    const vm = new CounterVM();
+    const listener = vi.fn();
+    const unsub = watch(vm, 'count', listener);
+
+    unsub();
+    unsub(); // second call must not throw
+
+    vm.plus();
+    await Promise.resolve();
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it('initial does not overwrite computed getters from $data', () => {
@@ -268,8 +282,8 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new LifeVM();
-    vm.$dispose();
-    vm.$dispose();
+    dispose(vm);
+    dispose(vm);
     expect(onDispose).toHaveBeenCalledOnce();
   });
 
@@ -288,7 +302,7 @@ describe('core/ViewModelBase', () => {
     }
     const vm = new LifeVM();
     _vmMount(vm);
-    vm.$dispose();
+    dispose(vm);
     expect(calls).toEqual(['unmount', 'dispose']);
   });
 
@@ -299,9 +313,9 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new VM();
-    expect(vm.$disposed).toBe(false);
-    vm.$dispose();
-    expect(vm.$disposed).toBe(true);
+    expect(isDisposed(vm)).toBe(false);
+    dispose(vm);
+    expect(isDisposed(vm)).toBe(true);
   });
 
   it('$subscribe / $watch are auto-drained at $dispose', async () => {
@@ -324,7 +338,7 @@ describe('core/ViewModelBase', () => {
     expect(subListener).toHaveBeenCalled();
     expect(watchListener).toHaveBeenCalled();
 
-    vm.$dispose();
+    dispose(vm);
     subListener.mockClear();
     watchListener.mockClear();
 
@@ -340,9 +354,6 @@ describe('core/ViewModelBase', () => {
         return { x: 0 };
       }
     }
-    const onCleanup = (vm: VM, fn: () => void): (() => void) =>
-      (vm as any).$onCleanup(fn);
-
     const vm = new VM();
 
     const cleanupA = vi.fn();
@@ -354,8 +365,61 @@ describe('core/ViewModelBase', () => {
 
     const cleanupB = vi.fn();
     onCleanup(vm, cleanupB);
-    vm.$dispose();
+    dispose(vm);
     expect(cleanupB).toHaveBeenCalledOnce();
+  });
+
+  it('$onCleanup post-$dispose runs the fn immediately', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+    }
+    const vm = new VM();
+    dispose(vm);
+
+    const fn = vi.fn();
+    onCleanup(vm, fn);
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it('cleanups drain in LIFO order at $dispose', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+    }
+    const vm = new VM();
+    const order: string[] = [];
+    onCleanup(vm, () => order.push('A'));
+    onCleanup(vm, () => order.push('B'));
+    onCleanup(vm, () => order.push('C'));
+    dispose(vm);
+    expect(order).toEqual(['C', 'B', 'A']);
+  });
+
+  it('a throwing cleanup does not block subsequent cleanups', () => {
+    class VM extends ViewModelBase<{ x: number }> {
+      protected $data() {
+        return { x: 0 };
+      }
+    }
+    const vm = new VM();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cleanA = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const cleanB = vi.fn();
+    onCleanup(vm, cleanA);
+    onCleanup(vm, cleanB);
+    dispose(vm);
+    expect(cleanA).toHaveBeenCalled();
+    expect(cleanB).toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalledWith(
+      '[bizify] cleanup error:',
+      expect.any(Error),
+    );
+    errSpy.mockRestore();
   });
 
   it('disposed VM ignores subsequent mount', () => {
@@ -369,7 +433,7 @@ describe('core/ViewModelBase', () => {
       }
     }
     const vm = new LifeVM();
-    vm.$dispose();
+    dispose(vm);
     _vmMount(vm);
     expect(onMount).not.toHaveBeenCalled();
   });

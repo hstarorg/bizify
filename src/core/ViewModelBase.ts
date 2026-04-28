@@ -4,7 +4,10 @@ import { isDev } from '../internal/dev';
 
 export type ViewModelState = object;
 
-/** Extract the state type from a ViewModelBase subclass. Internal helper. */
+/**
+ * Extract the state type from a ViewModelBase subclass.
+ * @internal Used by react bindings; not part of the public API.
+ */
 export type StateOf<VM> = VM extends ViewModelBase<infer T> ? T : never;
 
 // Per-instance lifecycle state lives in a module-level WeakMap so the VM
@@ -35,8 +38,25 @@ const invokeOnMount = (vm: ViewModelBase<any>): void => {
 const invokeOnUnmount = (vm: ViewModelBase<any>): void => {
   (vm as unknown as { onUnmount(): void }).onUnmount();
 };
+const invokeDispose = (vm: ViewModelBase<any>): void => {
+  (vm as unknown as { $dispose(): void }).$dispose();
+};
 const callData = <T extends ViewModelState>(vm: ViewModelBase<T>): T =>
   (vm as unknown as { $data(): T }).$data();
+
+/**
+ * Tear down a ViewModel manually (non-React usage / tests). Idempotent.
+ * Fires `onUnmount` (if mounted) → `onDispose`, then drains the effect
+ * scope. React-managed VMs auto-call this on component unmount.
+ */
+export function dispose(vm: ViewModelBase<any>): void {
+  invokeDispose(vm);
+}
+
+/** Whether `dispose(vm)` has been called on this VM. */
+export function isDisposed(vm: ViewModelBase<any>): boolean {
+  return states.get(vm)?.disposed ?? true;
+}
 
 // Build the proxy seed from $data() + initial. defineProperties preserves
 // accessor descriptors so computed getters survive proxy wrapping; spread
@@ -134,9 +154,19 @@ export abstract class ViewModelBase<T extends ViewModelState> {
     this.onInit();
   }
 
+  /**
+   * Return the initial state shape. Computed properties are declared as
+   * getters in the returned object — they're preserved as accessors on
+   * the proxy.
+   *
+   * **Must be pure**: do not call `$subscribe` / `$watch` / `$onCleanup`
+   * here, do not touch `this.data` (it's not yet a proxy at this point).
+   * Side effects belong in `onInit` / `onMount`.
+   */
   protected abstract $data(): T;
 
   protected $subscribe(listener: () => void): () => void {
+    if (this.$disposed) return () => {};
     return trackCleanup(this, subscribe(this.data, listener));
   }
 
@@ -165,9 +195,12 @@ export abstract class ViewModelBase<T extends ViewModelState> {
     listener: (value: unknown, oldValue: unknown) => void,
     options?: { immediate?: boolean },
   ): () => void {
-    const isGetter = typeof source === 'function';
-    const read = (): unknown =>
-      isGetter ? source() : (this.data as Record<string, unknown>)[source as string];
+    if (this.$disposed) return () => {};
+
+    const read = (): unknown => {
+      if (typeof source === 'function') return source();
+      return Reflect.get(this.data, source);
+    };
 
     let prev = read();
     const fire = (): void => {
@@ -178,9 +211,10 @@ export abstract class ViewModelBase<T extends ViewModelState> {
       listener(next, old);
     };
 
-    const unsub = isGetter
-      ? subscribe(this.data, fire)
-      : subscribeKey(this.data, source, fire);
+    const unsub =
+      typeof source === 'function'
+        ? subscribe(this.data, fire)
+        : subscribeKey(this.data, source, fire);
 
     if (options?.immediate) listener(prev, undefined);
 
@@ -200,8 +234,21 @@ export abstract class ViewModelBase<T extends ViewModelState> {
   protected onUnmount(): void {}
   protected onDispose(): void {}
 
-  /** True after `$dispose()` has been called. */
-  get $disposed(): boolean {
+  /**
+   * True after disposal. Use inside async actions to short-circuit
+   * post-unmount writes:
+   * ```ts
+   * async fetchTodos() {
+   *   const data = await api.get();
+   *   if (this.$disposed) return;
+   *   this.data.todos = data;
+   * }
+   * ```
+   *
+   * Outside the class, use `isDisposed(vm)` instead — `$disposed` is
+   * protected to keep view-layer `vm.` autocomplete clean.
+   */
+  protected get $disposed(): boolean {
     return states.get(this)!.disposed;
   }
 
@@ -209,8 +256,11 @@ export abstract class ViewModelBase<T extends ViewModelState> {
    * Tear down the instance. Idempotent. If still mounted, fires
    * `onUnmount` first; then `onDispose`; then drains all subscriptions
    * registered via `$subscribe` / `$watch` / `$onCleanup`.
+   *
+   * Outside the class, use `dispose(vm)` instead — `$dispose` is
+   * protected to keep view-layer `vm.` autocomplete clean.
    */
-  $dispose(): void {
+  protected $dispose(): void {
     const s = states.get(this);
     if (!s || s.disposed) return;
     if (s.mountCount > 0) {

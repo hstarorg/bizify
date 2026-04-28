@@ -21,19 +21,15 @@ export class ThemeVM extends ViewModelBase<{
   }
 
   protected onMount() {
-    // 任何 mode 变化自动写回 localStorage
-    this.unsubPersist = this.$watch('mode', (mode) => {
+    // 任何 mode 变化自动写回 localStorage。
+    // $watch 返回的 unsub 自动登记进 effect scope,
+    // 卸载时随 $dispose 一起清理 —— 不需要存到字段、不需要 onUnmount。
+    this.$watch('mode', (mode) => {
       if (typeof localStorage === 'undefined') return;
       localStorage.setItem(STORAGE_KEY, mode);
       this.data.lastWritten = new Date().toLocaleTimeString();
     });
   }
-
-  protected onUnmount() {
-    this.unsubPersist?.();
-  }
-
-  private unsubPersist?: () => void;
 
   toggle() {
     this.data.mode = this.data.mode === 'light' ? 'dark' : 'light';

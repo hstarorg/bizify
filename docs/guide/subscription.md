@@ -105,7 +105,11 @@ function MyComponent() {
 
 ## 命令式订阅(VM 内部)
 
-`$subscribe` 和 `$watch` 都是 **protected**——只能在 VM 类内部调,典型场景是 `onMount` 里订阅自身状态:
+`$subscribe` / `$watch` / `$onCleanup` 都是 **protected**——只能在 VM 类内部调,典型场景是 `onMount` 里订阅自身状态。
+
+::: tip 自动清理(effect scope)
+所有这三个方法返回的 unsubscribe **自动登记进 VM 的 effect scope**,卸载时随销毁一起清空。不需要把 unsub 存到字段里、不需要在 `onUnmount` 里手动调。心智和 Vue 的 `effectScope` 一致。
+:::
 
 ### `$subscribe`:监听任何变化
 
@@ -114,52 +118,81 @@ class TimerVM extends ViewModelBase<{ tick: number }> {
   protected $data() { return { tick: 0 }; }
 
   protected onMount() {
-    // 任何 state 变化都触发 callback
-    this.unsub = this.$subscribe(() => {
+    // 任何 state 变化都触发 callback;卸载时自动清理。
+    this.$subscribe(() => {
       console.log('state changed');
     });
   }
-
-  protected onUnmount() {
-    this.unsub?.();
-  }
-
-  private unsub?: () => void;
 }
 ```
 
 callback 不带参数。需要当前状态用 `import { snapshot } from 'valtio'; snapshot(this.data)`。
 
-### `$watch`:监听特定字段
+### `$watch`:监听 key 或 getter 表达式
+
+`$watch` 有两种形式,listener 接收 `(newValue, oldValue)`:
 
 ```ts
-class ThemeVM extends ViewModelBase<{ mode: 'light' | 'dark' }> {
-  protected $data() { return { mode: 'light' as const }; }
+class ThemeVM extends ViewModelBase<{
+  mode: 'light' | 'dark';
+  user: { name: string };
+}> {
+  protected $data() {
+    return { mode: 'light' as const, user: { name: 'Tom' } };
+  }
 
   protected onMount() {
-    this.unsub = this.$watch('mode', (newMode) => {
-      localStorage.setItem('theme', newMode);
+    // 1) key 形式:监听 top-level 字段
+    this.$watch('mode', (next, prev) => {
+      console.log(`${prev} → ${next}`);
+      localStorage.setItem('theme', next);
     });
-  }
 
-  protected onUnmount() {
-    this.unsub?.();
-  }
+    // 2) getter 形式:监听嵌套路径或表达式
+    this.$watch(
+      () => this.data.user.name,
+      (next, prev) => console.log(`name: ${prev} → ${next}`),
+    );
 
-  toggle() {
-    this.data.mode = this.data.mode === 'light' ? 'dark' : 'light';
+    // 3) immediate 选项:注册时立刻跑一次,oldValue 为 undefined
+    this.$watch('mode', (mode) => applyTheme(mode), { immediate: true });
   }
-
-  private unsub?: () => void;
 }
 ```
 
-`$watch(key, cb)` 只在该 key 变化时触发,callback 接收新值。底层是 valtio 的 `subscribeKey`。
+| 形式 | 等值判断 | 性能 | 适用 |
+|---|---|---|---|
+| key 形式 | valtio 内置 | 只在该 key 变化时触发 | top-level 字段 |
+| getter 形式 | `Object.is` | state 任何字段变化都会跑一次 getter | 嵌套路径 / 派生表达式 |
+
+::: warning getter 返回新对象会每次都触发
+`Object.is` 是引用比较。`() => [...this.data.items]` 这种每次返回新数组的 getter 会把 listener 当变化触发。要么返回原始引用,要么把表达式做成 `$data()` 里的 computed 然后用 key 形式 watch。
+:::
+
+### `$onCleanup`:任意清理函数登记到 scope
+
+```ts
+protected onMount() {
+  const id = setInterval(this.tick, 1000);
+  this.$onCleanup(() => clearInterval(id));   // 卸载时自动 clearInterval
+
+  const ws = new WebSocket('...');
+  this.$onCleanup(() => ws.close());
+}
+```
+
+返回值是一个**幂等**的 remover,允许提前手动取消(很少需要):
+
+```ts
+const cancel = this.$onCleanup(() => clearInterval(id));
+// ...某些条件下提前停掉
+cancel();   // 立即调 fn,且从 scope 摘除
+```
 
 ::: tip $subscribe vs $watch
-- 想监听整个 state 的任意变化 → `$subscribe`
-- 想监听单个字段 → `$watch`(更精确,性能更好)
-- 想监听派生表达式(`a + b > 10`) → `$subscribe` 内部自己比对,或者把表达式做成 computed 然后 `$watch` computed key
+- 监听**整个 state** 的任意变化 → `$subscribe`
+- 监听**某个 key** → `$watch('key', ...)` (最高效)
+- 监听**嵌套路径 / 派生表达式** → `$watch(() => ..., ...)`
 :::
 
 ## 性能小贴士

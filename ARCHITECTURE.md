@@ -32,7 +32,7 @@ bizify/
 
 | 层 | 文件 | 职责 |
 |---|---|---|
-| Core | `src/core/ViewModelBase.ts` | valtio proxy 状态、生命周期钩子、`$subscribe` / `$watch`、`autoBindPrototypeMethods`、`$dispose` |
+| Core | `src/core/ViewModelBase.ts` | valtio proxy 状态、生命周期钩子、effect scope(`$subscribe` / `$watch` / `$onCleanup` / `$disposed` / `$dispose`)、`autoBindMethods` |
 | React | `src/react/ViewModelBase.ts` | 加一个 `useSnapshot()`(内部调 valtio `useSnapshot`,cast 回 `T` 脱 readonly) |
 
 子类继承 React 版本(默认入口)或 Core 版本(`bizify/core`,框架无关场景)。
@@ -44,8 +44,8 @@ bizify/
 - `this.data.x = y` 在 VM 方法内直接 mutate,valtio 自动派发
 - `data` 是 **protected**,view 拿不到——强制 view 走 `useSnapshot()`,避免绕过封装直接改状态
 - `vm.useSnapshot()` 返回 snapshot——运行时 readonly(写入抛错),TS 类型脱回 `T`(便于和子组件 props 组合)
-- `$subscribe` / `$watch` 也是 **protected**,典型用法是 VM 在 `onMount` 里订阅自身。外部需要订阅时,在 VM 上暴露一个具体的 `onXxxChange(cb)` public 方法包一层
-- view 端 `vm.` 自动补全只看到:`useSnapshot()` / `$dispose()` / 子类自定义方法
+- `$subscribe` / `$watch` / `$onCleanup` / `$data` 全是 **protected**,典型用法是 VM 在 `onMount` 里订阅自身。外部需要订阅时,在 VM 上暴露一个具体的 `onXxxChange(cb)` public 方法包一层
+- view 端 `vm.` 自动补全只看到:`useSnapshot()` / 子类自定义方法。`$dispose` / `$disposed` 都是 protected,外部销毁/查询走模块级 `dispose(vm)` / `isDisposed(vm)`
 
 ### 2. 计算属性 = `$data()` 的 getter
 
@@ -68,9 +68,9 @@ $data(): CartState {
 
 ### 3. `this` 自动绑定
 
-`autoBindPrototypeMethods`:沿原型链(到 `Object.prototype` 之前)把每个非 constructor、非 getter/setter、非 own 的方法 `bind(this)` 后写为不可枚举 own property。
+`autoBindMethods`:沿原型链(到 `Object.prototype` 之前)把每个**非 constructor、非 `$`-prefix、非 getter/setter、非 own** 的方法 `bind(this)` 后写为不可枚举 own property。
 
-效果:箭头字段和原型方法都能直接当事件处理器传,`const { plus } = vm; plus()` 不丢 `this`。基类方法(`$dispose` / `$subscribe`)同样被绑定。
+效果:用户的箭头字段和原型方法都能直接当事件处理器传,`const { plus } = vm; plus()` 不丢 `this`。**框架方法(`$dispose` / `$subscribe` / `$watch` / `$onCleanup`)不 bind** —— 它们通过 `vm.method()` 调用,不需要 destructure-safety;且不进实例 own keys,减少污染。
 
 ### 4. 生命周期 StrictMode 隐形
 
@@ -82,28 +82,47 @@ $data(): CartState {
 
 结果:**StrictMode 双跑、并发模式弃用提交、Suspense 重挂载,全部合并为单次 `onMount`/`onUnmount`**——业务代码不需要写 idempotent。
 
-### 5. `$dispose()` 不自动触发
+### 5. 单一 effect scope,卸载即销毁(Vue-style)
 
-`useViewModel` 和 `Provider` 的 effect cleanup 只调 `[VM_UNMOUNT]`,**不调 `$dispose`**。理由是 StrictMode 安全:cleanup → mount 循环不能销毁实例。
+VM 维护**一个** cleanup 列表(模块级 `WeakMap` 里的 `cleanups: Array<() => void>`),**所有** `$subscribe` / `$watch` / `$onCleanup` 注册都进同一个 scope —— 对齐 Vue 3 的 `effectScope` 心智。
 
-`onDispose` 仅在用户显式 `vm.$dispose()` 时触发,留给容器/注册表/测试 teardown 场景。
+销毁路径(`$dispose`):
 
-### 6. 引用计数 + WeakMap 内部 API
+1. 若 `mountCount > 0`,先 `onUnmount`、`mountCount` 清零
+2. 标记 `disposed = true`
+3. 调 `onDispose`
+4. drain `cleanups`(LIFO,异常隔离 —— 一个 cleanup 抛错不阻塞后续)
 
-mount/unmount 闭包不挂在实例上,而是塞在模块级 `WeakMap<vm, { mount, unmount }>` 里。`#mountCount` / `#disposed` 是 JS `#` 私有字段,真正的运行时私有。
+React 路径下,`useViewModel` / `Provider` 的 effect cleanup **调 `dispose(vm)`** —— VM 与组件同生命周期(Vue:unmount === destroy)。`lifecycleBinding` 微任务协调器保证 StrictMode 的 mount → cleanup → mount 不会触发销毁。
 
-框架对外只暴露两个内部函数:`_vmMount(vm)` / `_vmUnmount(vm)`,它们查 WeakMap 调闭包。这俩函数**故意不从 `bizify/core` 公开导出**——只有框架自己的 `lifecycleBinding.ts` 直接从 `'../core/ViewModelBase'` 源文件 import。
+外部直接 `new VM()` 的场景(测试 teardown、手动注册表场景)用模块级 `dispose(vm)` 销毁、`isDisposed(vm)` 查询状态。`$dispose` / `$disposed` 是 protected —— class 内部用 `this.$disposed` 守卫即可:
 
-**为什么不用 Symbol-keyed 方法**:`unique symbol` 键的方法在 VS Code 自动补全里仍可见(显示为 `[VM_MOUNT]: () => void`)——视觉污染。WeakMap 方案让实例的 own keys / prototype keys 都不包含任何 internal API,view 端 `vm.` 输完后看到的只剩 `useSnapshot` / `$dispose` / 子类自定义方法。
+```ts
+async fetchTodos() {
+  const data = await api.get();
+  if (this.$disposed) return;
+  this.data.todos = data;
+}
+```
+
+### 6. WeakMap 内部状态 + 结构化 cast
+
+整个 per-VM 状态(`mountCount` / `disposed` / `cleanups`)塞在模块级 `WeakMap<vm, VMState>` 里,**实例上没有任何框架内部字段** —— `Object.getOwnPropertyNames(vm)` / `Object.getOwnPropertySymbols(vm)` 都看不到。
+
+为什么不用 JS `#` 私有字段:`#field` 在 VS Code 用户视角不可见,但在 DevTools / 反射 API 里仍可见;WeakMap 方案彻底隔离。
+
+框架对外只暴露两个内部函数:`_vmMount(vm)` / `_vmUnmount(vm)`,它们查 WeakMap、走结构化 cast 调用 protected 钩子。这俩函数**故意不从 `bizify/core` 公开导出** —— 只有 `lifecycleBinding.ts` 从源文件直接 import。
+
+**结构化 cast 收敛**:模块级 `invokeOnMount(vm)` / `invokeOnUnmount(vm)` / `callData(vm)` 三个 helper,每个独占一个结构类型(如 `{ onMount(): void }`),把 `as unknown as ...` 的 cast 收到一处。call site 全部干净。
 
 ## 视图绑定
 
 | API | 用途 | 实例归属 |
 |---|---|---|
-| `useViewModel(Ctor)` | 组件局部 VM | `useState(() => new Ctor())`,跟组件生命周期 |
-| `createViewModelContext(Ctor)` | 共享 / SSR | Provider 持有,`initial` prop 注入,**只读一次** |
+| `useViewModel(Ctor)` | 组件局部 VM | 跟组件生命周期,unmount 时自动 `dispose(vm)` |
+| `createViewModelContext(Ctor)` | 共享 / SSR | Provider 持有,`initial` prop 注入(**只读一次**),Provider unmount 时自动 `dispose(vm)` |
 
-两者都用 `lifecycleBinding`,所以 StrictMode 行为一致。
+两者都用 `lifecycleBinding`,所以 StrictMode 行为一致。类型上单类型参数 `<VM extends ViewModelBase<any>>`,内部用 `StateOf<VM>` 反推 state 类型 —— 用户调用不需要补类型参数。
 
 ## 构建管线
 
@@ -118,9 +137,9 @@ mount/unmount 闭包不挂在实例上,而是塞在模块级 `WeakMap<vm, { moun
 - `test/setup.ts` 加 jest-dom 匹配器 + 自动 cleanup
 - 显式 import(`import { describe } from 'vitest'`),不用 globals
 - 三个文件:
-  - `test/core.test.ts` — 类语义(state、`$subscribe`、`$watch`、生命周期、`$dispose`、autoBind、computed via getter)
-  - `test/useViewModel.test.tsx` — React 集成(挂载、自动追踪、嵌套 mutation、StrictMode、原型方法事件处理器)
-  - `test/createViewModelContext.test.tsx` — Provider 共享、initial 注入、initial 只读一次、StrictMode、生命周期
+  - `test/core.test.ts` — 类语义(state、`$subscribe`、`$watch` 双形式 + immediate、`$onCleanup`、生命周期、`$dispose` 顺序、`$disposed`、autoBind、computed via getter、initial 不覆盖 getter)
+  - `test/useViewModel.test.tsx` — React 集成(挂载、自动追踪、嵌套 mutation、StrictMode、原型方法事件处理器、unmount 触发 onDispose)
+  - `test/createViewModelContext.test.tsx` — Provider 共享、initial 注入、initial 只读一次、StrictMode、Provider unmount 触发 onDispose
 
 valtio `subscribe` / `subscribeKey` 是异步的(微任务),测试断言副作用前要 `await Promise.resolve()`。
 

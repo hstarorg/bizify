@@ -203,7 +203,7 @@ class CartVM extends ViewModelBase<CartState> {
 
 ## 异步方法
 
-异步方法就是普通的 async 函数,内部该 mutate 就 mutate:
+异步方法就是普通的 async 函数,内部该 mutate 就 mutate。**`await` 之后用 `this.$disposed` 守卫**——组件卸载会自动销毁 VM(标记 disposed),继续往孤儿 proxy 写状态没意义。`$disposed` 是 protected,只能在 class 内部访问,正好用于这个场景:
 
 ```ts
 class OrderVM extends ViewModelBase<OrderState & {
@@ -225,11 +225,13 @@ class OrderVM extends ViewModelBase<OrderState & {
     this.data.error = null;
     try {
       const items = await api.getOrders(this.data.filter);
+      if (this.$disposed) return;       // 卸载后直接退出
       this.data.items = items;
     } catch (e) {
+      if (this.$disposed) return;
       this.data.error = String(e);
     } finally {
-      this.data.loading = false;
+      if (!this.$disposed) this.data.loading = false;
     }
   }
 }
@@ -241,7 +243,7 @@ class OrderVM extends ViewModelBase<OrderState & {
 
 ## 方法风格:箭头字段 vs 原型方法
 
-ViewModel 构造时会自动把原型链上的方法 `bind(this)` 写到实例上,所以两种写法都能直接当事件处理器传:
+ViewModel 构造时会自动把**用户定义的**原型方法 `bind(this)` 写到实例上,所以两种写法都能直接当事件处理器传:
 
 ```ts
 class OrderVM extends ViewModelBase<OrderState> {
@@ -267,6 +269,10 @@ class OrderVM extends ViewModelBase<OrderState> {
 | 原型方法 | 调试栈更清晰;`super.xxx()` / 继承覆盖更顺;占内存少(原型共享) |
 
 混用也没问题——按方法表达力选即可。
+
+::: warning 框架方法不自动绑定
+`$`-prefix 是框架保留前缀:`$dispose` / `$subscribe` / `$watch` / `$onCleanup` / `$data` 等**不会**被 autoBind。它们通过 `vm.method()` 调用即可,不需要 destructure-safety。如果你自己定义方法不要用 `$` 开头。
+:::
 
 ## 完整示例
 

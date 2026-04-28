@@ -73,18 +73,16 @@ function CartItems() {
 
 ## Provider 的生命周期
 
-Provider 管理 VM 实例的生命周期:
+Provider 与 VM 实例同生命周期(Vue 风格:unmount === destroy):
 
-- Provider mount → `new CartVM()` → `onInit()` → `onMount()`
-- Provider unmount → `onUnmount()`
+- Provider mount → `new CartVM(initial)` → `onInit()` → (微任务后) `onMount()`
+- Provider unmount → (微任务后) `dispose(vm)` → `onUnmount()` → `onDispose()` → drain effect scope
 
-子组件订阅/取消订阅不影响 VM 生命周期。
+`$subscribe` / `$watch` / `$onCleanup` 注册的订阅和清理函数全部自动执行,业务代码不需要在 `onUnmount` 里手写 unsub。
 
-::: warning onDispose 不会自动触发
-为了在 React 18 StrictMode 下保持安全,Provider **不会**自动调用 `vm.$dispose()`。
-所有跟随视图生命周期的清理(定时器、事件监听等)放在 `onUnmount` 里。
-`onDispose` 仅在你显式调用 `vm.$dispose()` 时触发,适合容器/注册表等手动管理实例的场景。
-:::
+子组件 `useVM()` 只是订阅入口,不参与 VM 的引用计数;Provider 是唯一的 lifecycle holder。
+
+StrictMode 下 mount → cleanup → mount 的双跑被 `lifecycleBinding` 微任务协调器吃掉 —— 销毁只会在真正卸载时触发一次。
 
 ## 注入初始数据
 

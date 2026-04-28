@@ -1,4 +1,4 @@
-import { _vmMount, type ViewModelBase } from '../core/ViewModelBase';
+import { _vmMount, dispose, type ViewModelBase } from '../core/ViewModelBase';
 
 export interface LifecycleBinding {
   mount(): void;
@@ -11,8 +11,8 @@ export interface LifecycleBinding {
  * `onMount` / `onUnmount` cycle. Track desired state synchronously,
  * reconcile on the next microtask.
  *
- * On real unmount, calls `vm.$dispose()` — React-managed VMs are
- * component-scoped (Vue-style: unmount === destroy). `$dispose()` itself
+ * On real unmount, calls `dispose(vm)` — React-managed VMs are
+ * component-scoped (Vue-style: unmount === destroy). Disposal itself
  * fires `onUnmount` if still mounted, then `onDispose`, then drains the
  * scope.
  */
@@ -30,7 +30,7 @@ export function createLifecycleBinding(
       _vmMount(vm);
       mounted = true;
     } else {
-      vm.$dispose();
+      dispose(vm);
       mounted = false;
     }
   };

@@ -5,4 +5,8 @@ export {
   type ViewModelContext,
   type ViewModelProviderProps,
 } from './createViewModelContext';
-export type { ViewModelState } from '../core/ViewModelBase';
+export {
+  dispose,
+  isDisposed,
+  type ViewModelState,
+} from '../core/ViewModelBase';

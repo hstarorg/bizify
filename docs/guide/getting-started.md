@@ -89,15 +89,16 @@ export function Counter() {
 
 `useViewModel` 自动负责:
 - 组件首次渲染时 `new CounterVM()`(`onInit` 触发)
-- 视图挂载后触发 `onMount`,卸载时触发 `onUnmount`(StrictMode 双跑被合并)
+- 视图挂载后触发 `onMount`,卸载时自动销毁 VM —— 触发 `onUnmount` → `onDispose` 并清理 `$subscribe` / `$watch` / `$onCleanup` 注册的内容(StrictMode 双跑会被合并)
 - `useSnapshot()` 自动追踪在 render 中读到的字段,变化时重渲染
 
 ## 单测 ViewModel
 
-VM 是普通类,可以脱离 React 单测:
+VM 是普通类,可以脱离 React 单测。`data` 是 protected,验证状态的推荐做法是**通过公开方法/getter 间接断言**;真要直接读内部状态可以暴露一个测试辅助 getter:
 
 ```ts
 import { describe, it, expect } from 'vitest';
+import { dispose } from 'bizify';
 import { CounterVM } from './counter-vm';
 
 describe('CounterVM', () => {
@@ -105,7 +106,10 @@ describe('CounterVM', () => {
     const vm = new CounterVM();
     vm.plus();
     vm.plus();
-    expect(vm.data.count).toBe(2);
+    // data 是 protected;测试用 valtio snapshot 读出当前值
+    // 或在 VM 上加一个 public computed `get count() { return this.data.count }`
+    expect(vm['data'].count).toBe(2);
+    dispose(vm);   // 显式销毁(不通过 React 时需要)
   });
 });
 ```
