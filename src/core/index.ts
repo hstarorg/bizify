@@ -1,6 +1,6 @@
 export {
   ViewModelBase,
-  VM_MOUNT,
-  VM_UNMOUNT,
+  dispose,
+  isDisposed,
   type ViewModelState,
 } from './ViewModelBase';

@@ -2,160 +2,295 @@ import { proxy, subscribe } from 'valtio/vanilla';
 import { subscribeKey } from 'valtio/utils';
 import { isDev } from '../internal/dev';
 
-export type ViewModelState = Record<string, unknown>;
+export type ViewModelState = object;
 
 /**
- * @internal Symbol-keyed lifecycle hooks called by view bindings.
- * Symbols hide these from the public `vm.` autocomplete surface — they're
- * accessible only to callers that explicitly import the symbols (the
- * framework's own React layer).
+ * Extract the state type from a ViewModelBase subclass.
+ * @internal Used by react bindings; not part of the public API.
  */
-export const VM_MOUNT: unique symbol = Symbol('bizify.vm.mount');
-export const VM_UNMOUNT: unique symbol = Symbol('bizify.vm.unmount');
+export type StateOf<VM> = VM extends ViewModelBase<infer T> ? T : never;
+
+// Per-instance lifecycle state lives in a module-level WeakMap so the VM
+// instance has zero internal own properties — `vm.` autocomplete stays clean.
+interface VMState {
+  mountCount: number;
+  disposed: boolean;
+  // Single effect scope, Vue-style: $subscribe / $watch / $onCleanup all
+  // register here. Drained at $dispose().
+  cleanups: Array<() => void>;
+}
+
+const states = new WeakMap<ViewModelBase<any>, VMState>();
+
+const safeRun = (fn: () => void): void => {
+  try {
+    fn();
+  } catch (err) {
+    console.error('[bizify] cleanup error:', err);
+  }
+};
+
+// Framework-only structural casts. One helper per protected surface — keeps
+// each cast self-contained and renames type-check against the shape.
+const invokeOnMount = (vm: ViewModelBase<any>): void => {
+  (vm as unknown as { onMount(): void }).onMount();
+};
+const invokeOnUnmount = (vm: ViewModelBase<any>): void => {
+  (vm as unknown as { onUnmount(): void }).onUnmount();
+};
+const invokeDispose = (vm: ViewModelBase<any>): void => {
+  (vm as unknown as { $dispose(): void }).$dispose();
+};
+const callData = <T extends ViewModelState>(vm: ViewModelBase<T>): T =>
+  (vm as unknown as { $data(): T }).$data();
 
 /**
- * Framework-agnostic ViewModel base class, backed by valtio.
+ * Tear down a ViewModel manually (non-React usage / tests). Idempotent.
+ * Fires `onUnmount` (if mounted) → `onDispose`, then drains the effect
+ * scope. React-managed VMs auto-call this on component unmount.
+ */
+export function dispose(vm: ViewModelBase<any>): void {
+  invokeDispose(vm);
+}
+
+/** Whether `dispose(vm)` has been called on this VM. */
+export function isDisposed(vm: ViewModelBase<any>): boolean {
+  return states.get(vm)?.disposed ?? true;
+}
+
+// Build the proxy seed from $data() + initial. defineProperties preserves
+// accessor descriptors so computed getters survive proxy wrapping; spread
+// or assign would freeze them to one-shot snapshots.
+const buildSeed = <T extends ViewModelState>(
+  vm: ViewModelBase<T>,
+  initial?: Partial<T>,
+): Record<string, unknown> => {
+  const seed: Record<string, unknown> = {};
+  Object.defineProperties(
+    seed,
+    Object.getOwnPropertyDescriptors(callData(vm)),
+  );
+  if (!initial) return seed;
+  for (const key of Object.keys(initial)) {
+    // Skip accessor keys (computed getters from $data) — Object.assign
+    // throws on getter-only keys; warn-and-skip is friendlier.
+    const desc = Object.getOwnPropertyDescriptor(seed, key);
+    if (desc && (desc.get || desc.set)) {
+      if (isDev) {
+        console.warn(
+          `[bizify] initial.${key} ignored: it's a computed property in $data().`,
+        );
+      }
+      continue;
+    }
+    seed[key] = (initial as Record<string, unknown>)[key];
+  }
+  return seed;
+};
+
+// Module-level so it stays off the prototype (autoBind would otherwise
+// bind it onto every instance and pollute `vm.` autocomplete).
+const trackCleanup = (
+  vm: ViewModelBase<any>,
+  fn: () => void,
+): (() => void) => {
+  const s = states.get(vm);
+  if (!s || s.disposed) {
+    safeRun(fn);
+    return () => {};
+  }
+  s.cleanups.push(fn);
+  let removed = false;
+  return () => {
+    if (removed) return;
+    removed = true;
+    const idx = s.cleanups.indexOf(fn);
+    if (idx >= 0) s.cleanups.splice(idx, 1);
+    safeRun(fn);
+  };
+};
+
+const drainCleanups = (list: Array<() => void>): void => {
+  while (list.length) safeRun(list.pop()!);
+};
+
+/** @internal Framework-only. */
+export function _vmMount(vm: ViewModelBase<any>): void {
+  const s = states.get(vm)!;
+  if (s.disposed) return;
+  s.mountCount++;
+  if (s.mountCount === 1) invokeOnMount(vm);
+}
+
+/** @internal Framework-only. */
+export function _vmUnmount(vm: ViewModelBase<any>): void {
+  const s = states.get(vm)!;
+  if (s.disposed || s.mountCount === 0) return;
+  s.mountCount--;
+  if (s.mountCount === 0) invokeOnUnmount(vm);
+}
+
+/**
+ * ViewModel base class, backed by valtio.
  *
- * - `this.data` is a valtio proxy. Read it directly, mutate it directly:
- *   `this.data.count++` / `this.data.items.push(x)` / `this.data.user.name = 'X'`.
- *   It is **protected** — only callable inside VM methods, not from views.
- *   Views read state via `useSnapshot()` (in the React layer).
- * - Computed properties are declared as **getters in `$data()` return**, e.g.
- *   `get total() { return this.items.reduce(...); }`. Both `this.data.total`
- *   inside the VM and `useSnapshot(vm.data).total` in views auto-track deps.
- * - `$subscribe(cb)` / `$watch(key, cb)` are **protected** — meant for VM
- *   internal use (typically inside `onMount`). Expose specific subscriptions
- *   as public methods if external code needs them.
- *
- * Lifecycle hooks (override as needed):
- *   - `onInit`     fires once when the instance is constructed
- *   - `onMount`    fires when the first view attaches (ref count goes 0 -> 1)
- *   - `onUnmount`  fires when the last view detaches (ref count goes 1 -> 0)
- *   - `onDispose`  fires only when `$dispose()` is called explicitly
- *
- * In React 18 StrictMode, `onMount` / `onUnmount` are coalesced to fire
- * exactly once per real mount/unmount via the React layer's lifecycle binding.
+ * - `data` is a protected proxy. Mutate it directly inside VM methods.
+ * - Computed properties: declare them as getters in the `$data()` return.
+ * - Lifecycle: `onInit` (construction) → `onMount` → `onUnmount` →
+ *   `onDispose`. React-managed VMs auto-`$dispose()` on component unmount;
+ *   externally-constructed VMs require an explicit `$dispose()` call.
+ * - Subscriptions registered via `$subscribe` / `$watch` / `$onCleanup`
+ *   share a single Vue-style effect scope and are drained at `$dispose()`.
+ * - Under React 18 StrictMode, `onMount` / `onUnmount` are coalesced to
+ *   fire exactly once per real cycle (microtask reconciliation in the
+ *   React layer).
  */
 export abstract class ViewModelBase<T extends ViewModelState> {
   protected readonly data: T;
 
-  private mountCount = 0;
-  private disposed = false;
-
   constructor(initial?: Partial<T>) {
-    // Preserve getter descriptors from $data() — spread/assign would copy
-    // value snapshots and kill computed properties.
-    const baseShape = this.$data();
-    const seed: Record<string, unknown> = {};
-    Object.defineProperties(seed, Object.getOwnPropertyDescriptors(baseShape));
-    if (initial) {
-      // Initial overrides apply as plain values; users shouldn't override
-      // computed keys.
-      Object.assign(seed, initial);
-    }
-    this.data = proxy(seed) as T;
-    this.autoBindPrototypeMethods();
+    this.data = proxy(buildSeed(this, initial)) as T;
+    states.set(this, { mountCount: 0, disposed: false, cleanups: [] });
+    this.autoBindMethods();
     this.onInit();
   }
 
-  /** Declare the initial state. Called once by the constructor. */
+  /**
+   * Return the initial state shape. Computed properties are declared as
+   * getters in the returned object — they're preserved as accessors on
+   * the proxy.
+   *
+   * **Must be pure**: do not call `$subscribe` / `$watch` / `$onCleanup`
+   * here, do not touch `this.data` (it's not yet a proxy at this point).
+   * Side effects belong in `onInit` / `onMount`.
+   */
   protected abstract $data(): T;
 
-  /**
-   * Subscribe to any state change. Callback receives no args; use
-   * `import { snapshot } from 'valtio'` to capture the current snapshot.
-   * Protected — typically called from `onMount`.
-   */
   protected $subscribe(listener: () => void): () => void {
-    return subscribe(this.data, listener);
+    if (this.$disposed) return () => {};
+    return trackCleanup(this, subscribe(this.data, listener));
   }
 
   /**
-   * Subscribe to a single state key. Callback receives the new value.
-   * Protected — typically called from `onMount`.
+   * Watch a source for changes. Source can be either a top-level state
+   * key or a getter expression that reads from `this.data` (supports
+   * nested paths and computed expressions). Listener receives
+   * `(newValue, oldValue)`; when `immediate: true`, the first call's
+   * `oldValue` is `undefined`.
+   *
+   * Equality is `Object.is` — getters that return new arrays/objects on
+   * every call will fire on every state change.
    */
   protected $watch<K extends keyof T>(
-    key: K,
-    listener: (value: T[K]) => void,
+    source: K,
+    listener: (value: T[K], oldValue: T[K] | undefined) => void,
+    options?: { immediate?: boolean },
+  ): () => void;
+  protected $watch<V>(
+    source: () => V,
+    listener: (value: V, oldValue: V | undefined) => void,
+    options?: { immediate?: boolean },
+  ): () => void;
+  protected $watch(
+    source: keyof T | (() => unknown),
+    listener: (value: unknown, oldValue: unknown) => void,
+    options?: { immediate?: boolean },
   ): () => void {
-    return subscribeKey(
-      this.data,
-      key as string,
-      listener as (v: unknown) => void,
-    );
+    if (this.$disposed) return () => {};
+
+    const read = (): unknown => {
+      if (typeof source === 'function') return source();
+      return Reflect.get(this.data, source);
+    };
+
+    let prev = read();
+    const fire = (): void => {
+      const next = read();
+      if (Object.is(next, prev)) return;
+      const old = prev;
+      prev = next;
+      listener(next, old);
+    };
+
+    const unsub =
+      typeof source === 'function'
+        ? subscribe(this.data, fire)
+        : subscribeKey(this.data, source, fire);
+
+    if (options?.immediate) listener(prev, undefined);
+
+    return trackCleanup(this, unsub);
   }
 
-  // ─── lifecycle hooks (subclasses override) ───────────────────────────
+  /**
+   * Register an arbitrary cleanup tied to this VM's lifetime (Vue-style
+   * effect scope). Runs at `$dispose()`. Returns an idempotent remover.
+   */
+  protected $onCleanup(fn: () => void): () => void {
+    return trackCleanup(this, fn);
+  }
 
   protected onInit(): void {}
   protected onMount(): void {}
   protected onUnmount(): void {}
   protected onDispose(): void {}
 
-  // ─── ref counting (Symbol-keyed: callable by view bindings only) ──
-
-  /** @internal */
-  [VM_MOUNT](): void {
-    if (this.disposed) return;
-    if (this.mountCount === 0) this.onMount();
-    this.mountCount++;
+  /**
+   * True after disposal. Use inside async actions to short-circuit
+   * post-unmount writes:
+   * ```ts
+   * async fetchTodos() {
+   *   const data = await api.get();
+   *   if (this.$disposed) return;
+   *   this.data.todos = data;
+   * }
+   * ```
+   *
+   * Outside the class, use `isDisposed(vm)` instead — `$disposed` is
+   * protected to keep view-layer `vm.` autocomplete clean.
+   */
+  protected get $disposed(): boolean {
+    return states.get(this)!.disposed;
   }
 
-  /** @internal */
-  [VM_UNMOUNT](): void {
-    if (this.disposed) return;
-    if (this.mountCount === 0) {
-      if (isDev) {
-        console.warn(
-          '[bizify] [VM_UNMOUNT] called without a matching mount. ' +
-            'This usually indicates a binding bug.',
-        );
-      }
-      return;
+  /**
+   * Tear down the instance. Idempotent. If still mounted, fires
+   * `onUnmount` first; then `onDispose`; then drains all subscriptions
+   * registered via `$subscribe` / `$watch` / `$onCleanup`.
+   *
+   * Outside the class, use `dispose(vm)` instead — `$dispose` is
+   * protected to keep view-layer `vm.` autocomplete clean.
+   */
+  protected $dispose(): void {
+    const s = states.get(this);
+    if (!s || s.disposed) return;
+    if (s.mountCount > 0) {
+      s.mountCount = 0;
+      this.onUnmount();
     }
-    this.mountCount--;
-    if (this.mountCount === 0) this.onUnmount();
-  }
-
-  /**
-   * Tear down the instance. Idempotent. Triggers `onDispose`.
-   *
-   * Not called automatically by `useViewModel` or the Provider from
-   * `createViewModelContext` — those rely on `onUnmount` for cleanup so
-   * they remain safe under React StrictMode. Call this explicitly when
-   * you need a one-shot teardown (tests, container/registry patterns).
-   */
-  $dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
+    s.disposed = true;
     this.onDispose();
+    drainCleanups(s.cleanups);
   }
 
   /**
-   * Walk the prototype chain and bind every method to `this` as a
-   * non-enumerable own property. Lets users define methods either as
-   * arrow class fields (`plus = () => ...`) or as plain prototype methods
-   * (`plus() { ... }`) — both can be passed as handlers without losing
-   * `this`.
-   *
-   * Symbol-keyed methods (`[VM_MOUNT]` / `[VM_UNMOUNT]`) are skipped
-   * (Object.getOwnPropertyNames returns string keys only). They're called
-   * via `vm[VM_MOUNT]()` syntax with `this` bound to vm naturally.
+   * Bind user-defined prototype methods to `this` as non-enumerable own
+   * properties, so methods survive destructuring / event-handler passing.
+   * Framework-prefixed (`$*`) methods are skipped — they're called as
+   * `vm.method()`, never destructured.
    */
-  private autoBindPrototypeMethods(): void {
+  private autoBindMethods(): void {
     let proto: object | null = Object.getPrototypeOf(this);
     while (proto && proto !== Object.prototype) {
       for (const name of Object.getOwnPropertyNames(proto)) {
         if (name === 'constructor') continue;
+        if (name.startsWith('$')) continue;
         if (Object.prototype.hasOwnProperty.call(this, name)) continue;
-        const desc = Object.getOwnPropertyDescriptor(proto, name);
-        if (!desc || desc.get || desc.set) continue;
+        const desc = Object.getOwnPropertyDescriptor(proto, name)!;
         if (typeof desc.value !== 'function') continue;
         Object.defineProperty(this, name, {
-          value: (desc.value as (...args: unknown[]) => unknown).bind(this),
+          value: desc.value.bind(this),
           writable: true,
           configurable: true,
-          enumerable: false,
         });
       }
       proto = Object.getPrototypeOf(proto);

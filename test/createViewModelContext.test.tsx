@@ -77,7 +77,7 @@ describe('createViewModelContext', () => {
     consoleError.mockRestore();
   });
 
-  it('Provider lifecycle: onMount once, onUnmount once, no auto-$dispose', async () => {
+  it('Provider lifecycle: onMount once, onUnmount + onDispose on Provider unmount', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     const onDispose = vi.fn();
@@ -112,12 +112,13 @@ describe('createViewModelContext', () => {
     await Promise.resolve();
     expect(onMount).toHaveBeenCalledOnce();
     expect(onUnmount).not.toHaveBeenCalled();
+    expect(onDispose).not.toHaveBeenCalled();
 
     unmount();
     await Promise.resolve();
     expect(onUnmount).toHaveBeenCalledOnce();
-    // Provider does not auto-call $dispose().
-    expect(onDispose).not.toHaveBeenCalled();
+    // VM is component-scoped: Provider unmount === $dispose() (Vue-style).
+    expect(onDispose).toHaveBeenCalledOnce();
   });
 
   it('StrictMode: Provider lifecycle fires exactly once each (Vue-like)', async () => {

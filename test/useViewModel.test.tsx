@@ -131,7 +131,7 @@ describe('useViewModel', () => {
     expect(screen.getByTestId('btn')).toHaveTextContent('1');
   });
 
-  it('lifecycle: onMount fires once after render, onUnmount fires once after unmount', async () => {
+  it('lifecycle: onMount on render, onUnmount + onDispose on unmount', async () => {
     const onMount = vi.fn();
     const onUnmount = vi.fn();
     const onDispose = vi.fn();
@@ -160,11 +160,12 @@ describe('useViewModel', () => {
     await Promise.resolve();
     expect(onMount).toHaveBeenCalledOnce();
     expect(onUnmount).not.toHaveBeenCalled();
+    expect(onDispose).not.toHaveBeenCalled();
 
     unmount();
     await Promise.resolve();
     expect(onUnmount).toHaveBeenCalledOnce();
-    expect(onDispose).not.toHaveBeenCalled();
+    expect(onDispose).toHaveBeenCalledOnce();
   });
 
   it('StrictMode: onMount and onUnmount each fire exactly once (Vue-like)', async () => {

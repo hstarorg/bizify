@@ -3,25 +3,15 @@ import {
   createElement,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import type { ViewModelBase } from './ViewModelBase';
-import type { ViewModelState } from '../core/ViewModelBase';
-import {
-  createLifecycleBinding,
-  type LifecycleBinding,
-} from './lifecycleBinding';
+import type { StateOf, ViewModelState } from '../core/ViewModelBase';
+import { createLifecycleBinding } from './lifecycleBinding';
 
 export interface ViewModelProviderProps<T extends ViewModelState> {
-  /**
-   * Initial state to merge into the ViewModel on construction.
-   *
-   * Read **only on the first render** of the Provider. Changing this prop
-   * later does not rebuild the ViewModel — by design, to keep SSR hydration
-   * stable. If you need to swap state, expose a method on the ViewModel.
-   */
+  /** Initial state overrides — read once on first render only (SSR-safe). */
   initial?: Partial<T>;
   children: ReactNode;
 }
@@ -35,42 +25,27 @@ export interface ViewModelContext<
 }
 
 /**
- * Create a Provider + hook pair for a ViewModel. The Provider creates one
- * instance for its subtree (lifetime tied to the Provider), and `useVM()`
- * grabs it from context.
- *
- * Use this for:
- *   - subtree-shared ViewModels (e.g. a Cart shared across cart-page children)
- *   - SSR (each request constructs its own instance via the Provider)
- *   - app-wide singletons (mount the Provider at the app root)
- *
- * **StrictMode is invisible.** `onMount` / `onUnmount` fire exactly once
- * per real Provider mount / unmount, not twice in dev mode.
- *
- * **Note**: `$dispose()` is *not* auto-called on Provider unmount. Put
- * cleanup in `onUnmount`. Call `$dispose()` explicitly only when you need
- * a one-shot teardown.
+ * Provider + useVM hook for sharing a VM across a subtree (also the
+ * recommended SSR pattern — each request gets its own Provider/VM).
  */
-export function createViewModelContext<
-  T extends ViewModelState,
-  VM extends ViewModelBase<T>,
->(Ctor: new (initial?: Partial<T>) => VM): ViewModelContext<T, VM> {
+export function createViewModelContext<VM extends ViewModelBase<any>>(
+  Ctor: new (initial?: Partial<StateOf<VM>>) => VM,
+): ViewModelContext<StateOf<VM>, VM> {
   const Ctx = createContext<VM | null>(null);
 
-  function Provider({ initial, children }: ViewModelProviderProps<T>) {
-    const [vm] = useState(() => new Ctor(initial));
-    const bindingRef = useRef<LifecycleBinding | null>(null);
-    if (bindingRef.current === null) {
-      bindingRef.current = createLifecycleBinding(vm);
-    }
+  function Provider({
+    initial,
+    children,
+  }: ViewModelProviderProps<StateOf<VM>>) {
+    const [{ vm, binding }] = useState(() => {
+      const vm = new Ctor(initial);
+      return { vm, binding: createLifecycleBinding(vm) };
+    });
 
     useEffect(() => {
-      const binding = bindingRef.current!;
       binding.mount();
-      return () => {
-        binding.unmount();
-      };
-    }, [vm]);
+      return binding.unmount;
+    }, [binding]);
 
     return createElement(Ctx.Provider, { value: vm }, children);
   }
@@ -78,9 +53,7 @@ export function createViewModelContext<
   function useVM(): VM {
     const vm = useContext(Ctx);
     if (!vm) {
-      throw new Error(
-        `[bizify] useVM() called outside of its Provider. Wrap your tree in <Provider>.`,
-      );
+      throw new Error('[bizify] useVM() called outside of its Provider.');
     }
     return vm;
   }

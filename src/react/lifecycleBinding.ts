@@ -1,56 +1,45 @@
-import { VM_MOUNT, VM_UNMOUNT } from '../core/ViewModelBase';
-
-/**
- * Internal helper: bridges React's effect lifecycle (which can fire
- * mount → cleanup → mount synchronously under StrictMode or discarded
- * concurrent commits) into a clean "mounted once / unmounted once"
- * contract on the underlying ViewModel.
- *
- * Strategy: don't call vm[VM_MOUNT] / vm[VM_UNMOUNT] synchronously from
- * the effect. Track a desired state, schedule a microtask, and reconcile
- * to the final state once the synchronous burst settles.
- *
- * Effect:
- *   - StrictMode's mount → cleanup → mount collapses to a single onMount
- *   - A discarded commit (mount → cleanup, no remount) collapses to
- *     no lifecycle calls at all
- *   - A real mount fires onMount once on the next microtask
- *   - A real unmount fires onUnmount once on the next microtask
- */
-interface VmBinding {
-  [VM_MOUNT](): void;
-  [VM_UNMOUNT](): void;
-}
+import { _vmMount, dispose, type ViewModelBase } from '../core/ViewModelBase';
 
 export interface LifecycleBinding {
-  /** Call from useEffect setup. */
   mount(): void;
-  /** Call from useEffect cleanup. */
   unmount(): void;
 }
 
-export function createLifecycleBinding(vm: VmBinding): LifecycleBinding {
-  let actualMounted = false;
+/**
+ * Coalesce React's mount → cleanup → mount bursts (StrictMode dev-mode,
+ * discarded concurrent commits, Suspense remounts) into a single
+ * `onMount` / `onUnmount` cycle. Track desired state synchronously,
+ * reconcile on the next microtask.
+ *
+ * On real unmount, calls `dispose(vm)` — React-managed VMs are
+ * component-scoped (Vue-style: unmount === destroy). Disposal itself
+ * fires `onUnmount` if still mounted, then `onDispose`, then drains the
+ * scope.
+ */
+export function createLifecycleBinding(
+  vm: ViewModelBase<any>,
+): LifecycleBinding {
+  let mounted = false;
   let desired = false;
   let scheduled = false;
 
-  function reconcile(): void {
+  const reconcile = () => {
     scheduled = false;
-    if (desired === actualMounted) return;
+    if (desired === mounted) return;
     if (desired) {
-      vm[VM_MOUNT]();
-      actualMounted = true;
+      _vmMount(vm);
+      mounted = true;
     } else {
-      vm[VM_UNMOUNT]();
-      actualMounted = false;
+      dispose(vm);
+      mounted = false;
     }
-  }
+  };
 
-  function schedule(): void {
+  const schedule = () => {
     if (scheduled) return;
     scheduled = true;
     queueMicrotask(reconcile);
-  }
+  };
 
   return {
     mount() {
