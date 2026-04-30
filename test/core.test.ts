@@ -318,6 +318,18 @@ describe('core/ViewModelBase', () => {
     expect(isDisposed(vm)).toBe(true);
   });
 
+  it('$dispose / $disposed are protected (locked-in contract)', () => {
+    const vm = new CounterVM();
+    // @ts-expect-error $dispose is protected — use dispose(vm) outside the class
+    vm.$dispose;
+    // @ts-expect-error $disposed is protected — use isDisposed(vm) outside the class
+    vm.$disposed;
+    // The public escape hatches:
+    expect(isDisposed(vm)).toBe(false);
+    dispose(vm);
+    expect(isDisposed(vm)).toBe(true);
+  });
+
   it('$subscribe / $watch are auto-drained at $dispose', async () => {
     const subListener = vi.fn();
     const watchListener = vi.fn();

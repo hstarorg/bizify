@@ -53,7 +53,16 @@ export function dispose(vm: ViewModelBase<any>): void {
   invokeDispose(vm);
 }
 
-/** Whether `dispose(vm)` has been called on this VM. */
+/**
+ * Whether `dispose(vm)` has been called on this VM.
+ *
+ * Fail-safe: returns `true` for unrecognized inputs (e.g., a value that
+ * isn't actually a constructed VM, or one whose WeakMap entry has been
+ * GC'd). Callers can treat "unknown" as "treat as disposed" without
+ * extra checks. The class-internal `this.$disposed` getter is stricter
+ * (asserts entry presence) since it always runs against a constructed
+ * instance.
+ */
 export function isDisposed(vm: ViewModelBase<any>): boolean {
   return states.get(vm)?.disposed ?? true;
 }
@@ -259,6 +268,11 @@ export abstract class ViewModelBase<T extends ViewModelState> {
    *
    * Outside the class, use `dispose(vm)` instead — `$dispose` is
    * protected to keep view-layer `vm.` autocomplete clean.
+   *
+   * **Do not override.** Override `onDispose` for cleanup logic;
+   * overriding `$dispose` itself bypasses the framework's lifecycle
+   * sequencing (onUnmount → onDispose → drain scope) and breaks
+   * subscription auto-cleanup.
    */
   protected $dispose(): void {
     const s = states.get(this);
