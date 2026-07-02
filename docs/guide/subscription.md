@@ -30,6 +30,18 @@ function OrderTable() {
 
 修改 `vm.data.filter` 只重渲染 `OrderHeader`;修改 `vm.data.items` 只重渲染 `OrderTable`。**不写一行 selector**。
 
+## 同步通知(`sync` 选项)
+
+`vm.useSnapshot()` **默认同步通知**(等价 valtio 的 `{ sync: true }`)。这是有意为之:
+
+valtio 自身默认把变更通知**按微任务批处理(异步)**,受控输入框(`<input value={snap.x} onChange={...}>`)的重渲染会晚一拍——快速输入丢字符、光标跳动、中文输入法异常。业务应用满屏是表单,所以 bizify 把默认值翻转为同步;React 18+ 的 automatic batching 仍会合并同一 tick 内的更新,代价可忽略。
+
+高频批量 mutation 的场景(动画、流式推送,尤其跨 `await` 的连续写入)可以显式退回批处理:
+
+```tsx
+const snap = vm.useSnapshot({ sync: false });  // valtio 默认的微任务批处理
+```
+
 ## 嵌套字段也自动追踪
 
 ```tsx
