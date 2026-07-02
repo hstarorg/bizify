@@ -1,3 +1,14 @@
+# [1.1.0](https://github.com/hstarorg/bizify/compare/v1.0.2...v1.1.0) (2026-07-02)
+
+
+### Bug Fixes
+
+* **release:** switch npm publish to OIDC trusted publishing ([1472020](https://github.com/hstarorg/bizify/commit/147202085f0f069aaa40fb92e68500d657308bfe))
+
+
+### Features
+
+* sync notifications by default in useSnapshot, migrate to valtio ([ced1201](https://github.com/hstarorg/bizify/commit/ced1201e474ac1ce5ff939d6db634f2acea0687b))
 ## [1.0.2](https://github.com/hstarorg/bizify/compare/v1.0.1...v1.0.2) (2026-04-28)
 
 
