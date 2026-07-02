@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write   # npm Trusted Publishing(OIDC),免 NPM_TOKEN
 
 jobs:
   release:
@@ -39,7 +40,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
 
@@ -79,9 +79,9 @@ jobs:
           git tag -a "v$VERSION" -m "v$VERSION"
 
       - name: Publish to npm
+        # 走 OIDC Trusted Publishing:需 npm 包设置里登记本仓库/workflow 为 Trusted Publisher,
+        # 之后无需任何 NPM_TOKEN secret(id-token: write 权限见顶部 permissions)
         run: pnpm publish --no-git-checks --access public --tag "${{ inputs.npm_tag }}"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Push commit and tag
         run: git push --follow-tags
