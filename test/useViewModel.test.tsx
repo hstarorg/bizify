@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { StrictMode } from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ViewModelBase, useViewModel } from '../src';
 
 class CounterVM extends ViewModelBase<{ count: number; other: number }> {
@@ -231,5 +231,75 @@ describe('useViewModel', () => {
       vmRef!.rename('Jerry');
     });
     expect(screen.getByTestId('name')).toHaveTextContent('Jerry');
+  });
+});
+
+describe('useSnapshot sync option', () => {
+  class FormVM extends ViewModelBase<{ text: string }> {
+    protected $data() {
+      return { text: '' };
+    }
+    setText(v: string) {
+      this.data.text = v;
+    }
+  }
+
+  it('controlled input keeps typed value (sync by default) — regression for dropped keystrokes', () => {
+    function View() {
+      const vm = useViewModel(FormVM);
+      const snap = vm.useSnapshot();
+      return (
+        <input
+          data-testid="inp"
+          value={snap.text}
+          onChange={(e) => vm.setText(e.target.value)}
+        />
+      );
+    }
+
+    render(<View />);
+    const inp = screen.getByTestId('inp') as HTMLInputElement;
+
+    // With valtio's async (microtask-batched) default, the re-render lands one
+    // microtask late and React restores the controlled value — the keystroke
+    // is lost. With bizify's sync default the value survives immediately.
+    fireEvent.change(inp, { target: { value: 'hello' } });
+    expect(inp.value).toBe('hello');
+  });
+
+  it('mutation is visible right after a synchronous act (no microtask wait)', () => {
+    let vmRef: FormVM | null = null;
+    function View() {
+      const vm = useViewModel(FormVM);
+      vmRef = vm;
+      const snap = vm.useSnapshot();
+      return <div data-testid="text">{snap.text}</div>;
+    }
+
+    render(<View />);
+    act(() => {
+      vmRef!.setText('now');
+    });
+    expect(screen.getByTestId('text')).toHaveTextContent('now');
+  });
+
+  it('sync: false opts back into valtio microtask batching', async () => {
+    let vmRef: FormVM | null = null;
+    function View() {
+      const vm = useViewModel(FormVM);
+      vmRef = vm;
+      const snap = vm.useSnapshot({ sync: false });
+      return <div data-testid="text">{snap.text}</div>;
+    }
+
+    render(<View />);
+    // Batched: not yet visible right after a synchronous act…
+    act(() => {
+      vmRef!.setText('later');
+    });
+    expect(screen.getByTestId('text')).toHaveTextContent('');
+    // …but lands once microtasks flush.
+    await act(async () => {});
+    expect(screen.getByTestId('text')).toHaveTextContent('later');
   });
 });

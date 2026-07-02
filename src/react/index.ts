@@ -1,4 +1,4 @@
-export { ViewModelBase } from './ViewModelBase';
+export { ViewModelBase, type UseSnapshotOptions } from './ViewModelBase';
 export { useViewModel } from './useViewModel';
 export {
   createViewModelContext,
