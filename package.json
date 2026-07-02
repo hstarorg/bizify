@@ -54,7 +54,6 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "docs:deploy": "gh-pages -d docs/.vitepress/dist",
-    "prepare": "husky",
     "release": "pnpm build && pnpm publish"
   },
   "peerDependencies": {
@@ -90,7 +89,7 @@
       "oxlint --fix"
     ]
   },
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@11.9.0",
   "dependencies": {
     "valtio": "^2.3.1"
   }
